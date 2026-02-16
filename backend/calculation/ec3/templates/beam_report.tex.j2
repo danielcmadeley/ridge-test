@@ -1,0 +1,309 @@
+\documentclass[a4paper,10pt]{article}
+\usepackage[left=15mm,right=15mm,top=35mm,bottom=15mm,headheight=22mm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{fancyhdr}
+\usepackage{xcolor}
+\usepackage{multicol}
+\usepackage{graphicx}
+\usepackage{titlesec}
+\usepackage{parskip}
+
+% ── Colours ──────────────────────────────────────────────────
+\definecolor{passgreen}{HTML}{2E7D32}
+\definecolor{failred}{HTML}{C62828}
+\definecolor{headblue}{HTML}{1565C0}
+\definecolor{ruleblue}{HTML}{90CAF9}
+
+\newcommand{\pass}{\textcolor{passgreen}{\textbf{PASS}}}
+\newcommand{\fail}{\textcolor{failred}{\textbf{FAIL}}}
+
+% ── Section formatting ───────────────────────────────────────
+\titleformat{\section}
+  {\small\bfseries\color{headblue}}{}{0em}{}
+  [\vspace{-0.4em}{\color{ruleblue}\rule{\columnwidth}{0.3pt}}]
+\titlespacing*{\section}{0pt}{6pt}{2pt}
+
+% ── Page header ──────────────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{%
+  \BLOCK{if has_logo}%
+  \includegraphics[height=14mm]{\VAR{logo_filename}}%
+  \BLOCK{else}%
+  \raisebox{2mm}{\textbf{\large\color{headblue}formandfunction}}%
+  \BLOCK{endif}%
+}
+\rhead{%
+  \scriptsize%
+  \begin{tabular}[b]{@{}r@{\,}l@{\quad}r@{\,}l@{}}
+    \textbf{Project:} & \VAR{project_title} & \textbf{Calcs by:} & \VAR{calcs_by} \\
+    \textbf{Job No:} & \VAR{job_no} & \textbf{Checked:} & \VAR{checked_by} \\
+    \textbf{Calcs for:} & \VAR{calcs_for} & \textbf{Approved:} & \VAR{approved_by} \\
+  \end{tabular}%
+}
+\renewcommand{\headrulewidth}{0.5pt}
+\cfoot{\scriptsize Page~\thepage}
+
+% ── Layout ───────────────────────────────────────────────────
+\setlength{\columnsep}{4mm}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{1.5pt}
+
+\begin{document}
+
+% ══════════════════════════════════════════════════════════════
+%  Title
+% ══════════════════════════════════════════════════════════════
+\begin{center}
+  {\normalsize\bfseries\color{headblue} Steel Beam Design to Eurocode 3}\\[1pt]
+  {\footnotesize EN 1993-1-1:2005}\\[3pt]
+  {\small\bfseries \VAR{designation} \;---\; \VAR{steel_grade} \;---\; Span\,=\,\VAR{span}\,m}\\[1pt]
+  {\small $M_{Ed} = \VAR{MEd}$\,kNm \qquad $V_{Ed} = \VAR{VEd}$\,kN}
+\end{center}
+\vspace{-1mm}
+{\color{headblue}\hrule height 0.5pt}
+\vspace{3mm}
+
+% ══════════════════════════════════════════════════════════════
+%  Section Properties (full width)
+% ══════════════════════════════════════════════════════════════
+{\small\bfseries\color{headblue} Section Properties}
+\vspace{-1mm}
+
+{\color{ruleblue}\rule{\textwidth}{0.3pt}}
+\vspace{1mm}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{@{}ll@{\quad}ll@{\quad}ll@{\quad}ll@{}}
+\toprule
+$h$        & \VAR{h}\,mm      & $b$        & \VAR{b}\,mm      & $t_w$      & \VAR{tw}\,mm     & $t_f$      & \VAR{tf}\,mm \\
+$r$        & \VAR{r}\,mm      & $d$        & \VAR{d}\,mm      & $A$        & \VAR{A_sec}\,cm$^2$ & $G$     & \VAR{mass}\,kg/m \\
+\midrule
+$I_y$      & \VAR{Iy}\,cm$^4$ & $I_z$      & \VAR{Iz_sec}\,cm$^4$ & $I_t$  & \VAR{It}\,cm$^4$ & $I_w$      & \VAR{Iw}\,cm$^6$ \\
+$W_{el,y}$ & \VAR{Wel_y}\,cm$^3$ & $W_{pl,y}$ & \VAR{Wpl_y}\,cm$^3$ & & & & \\
+\bottomrule
+\end{tabular}
+\end{center}
+\vspace{2mm}
+
+% ══════════════════════════════════════════════════════════════
+%  3-Column Design Checks
+% ══════════════════════════════════════════════════════════════
+\begin{multicols}{3}
+\small
+
+% ── Step 1 ──────────────────────────────────────────────────
+\section{Step 1: Yield Strength}
+{\footnotesize\itshape Table 3.1}
+
+\VAR{steel_grade},\; $t_f = \VAR{tf}$\,mm
+
+$f_y = \VAR{fy}$\,N/mm$^2$
+
+$\varepsilon = \sqrt{235/\VAR{fy}} = \VAR{epsilon}$
+
+% ── Step 2 ──────────────────────────────────────────────────
+\section{Step 2: Classification}
+{\footnotesize\itshape Table 5.2}
+
+\textbf{Web} (internal part):
+
+$c/t = \VAR{c_web}/\VAR{tw} = \VAR{ct_web}$
+
+$72\varepsilon = \VAR{web_72e}$
+$\;\Rightarrow$ \textbf{Class \VAR{web_class}}
+
+\medskip
+\textbf{Flange} (outstand):
+
+$c = (b{-}t_w)/2{-}r = \VAR{c_flange}$\,mm
+
+$c/t = \VAR{c_flange}/\VAR{tf} = \VAR{ct_flange}$
+
+$9\varepsilon = \VAR{fl_9e}$
+$\;\Rightarrow$ \textbf{Class \VAR{flange_class}}
+
+\medskip
+\fbox{\textbf{Overall: Class \VAR{section_class}}}
+
+% ── Step 3 ──────────────────────────────────────────────────
+\section{Step 3: Bending}
+{\footnotesize\itshape \S\,6.2.5}
+
+\BLOCK{if section_class <= 2}%
+Class \VAR{section_class} $\rightarrow W_{pl,y}$
+\BLOCK{else}%
+Class 3 $\rightarrow W_{el,y}$
+\BLOCK{endif}
+
+$M_{c,Rd} = W_y \cdot f_y\,/\,\gamma_{M0}$
+
+$= \VAR{Wy_cm3}{\times}10^3{\times}\VAR{fy}\,/\,10^6$
+
+$= \VAR{Mc_Rd}$\,kNm
+
+\medskip
+$M_{Ed}/M_{c,Rd} = \VAR{bending_util}$\;
+\BLOCK{if bending_ok}\pass\BLOCK{else}\fail\BLOCK{endif}
+
+% ── Step 4 ──────────────────────────────────────────────────
+\section{Step 4: Shear}
+{\footnotesize\itshape \S\,6.2.6}
+
+$A_v = \VAR{Av}$\,mm$^2$
+
+$V_{pl,Rd} = A_v(f_y/\!\sqrt{3})\,/\,\gamma_{M0}$
+
+$= \VAR{Vpl_Rd}$\,kN
+
+\medskip
+$V_{Ed}/V_{pl,Rd} = \VAR{shear_util}$\;
+\BLOCK{if shear_ok}\pass\BLOCK{else}\fail\BLOCK{endif}
+
+% ── Step 5 ──────────────────────────────────────────────────
+\section{Step 5: Shear Buckling}
+{\footnotesize\itshape Expression 6.22}
+
+$h_w/t_w = \VAR{hw_tw}$
+
+$72\varepsilon/\eta = \VAR{hw_tw_limit}$
+
+\medskip
+$\VAR{hw_tw} \leq \VAR{hw_tw_limit}$\;
+\BLOCK{if shear_buckling_ok}\pass\BLOCK{else}\fail\BLOCK{endif}
+
+% ── Step 6 ──────────────────────────────────────────────────
+\section{Step 6: Bending + Shear}
+{\footnotesize\itshape \S\,6.2.8}
+
+\BLOCK{if low_shear}%
+$V_{Ed} = \VAR{VEd} \leq 0.5\,V_{pl,Rd}$
+
+$= \VAR{half_Vpl}$\,kN
+
+Low shear --- no reduction.
+
+$M_{V,Rd} = M_{c,Rd} = \VAR{Mv_Rd}$\,kNm
+\BLOCK{else}%
+$\rho = (2V_{Ed}/V_{pl,Rd} - 1)^2$
+
+$= \VAR{rho}$
+
+$M_{V,Rd} = \VAR{Mv_Rd}$\,kNm
+\BLOCK{endif}
+
+\medskip
+$M_{Ed}/M_{V,Rd} = \VAR{combined_util}$\;
+\BLOCK{if combined_ok}\pass\BLOCK{else}\fail\BLOCK{endif}
+
+% ── Step 9 ──────────────────────────────────────────────────
+\section{Step 9: Deflection}
+{\footnotesize\itshape EN\,1990 Annex A1.4}
+
+$\delta_{max} = \VAR{delta_max}$\,mm
+
+$\delta_{limit} = L/\VAR{defl_ratio_int}$
+
+$= \VAR{span_mm}/\VAR{defl_ratio_int} = \VAR{delta_limit}$\,mm
+
+\medskip
+$\delta/\delta_{limit} = \VAR{deflection_util}$\;
+\BLOCK{if deflection_ok}\pass\BLOCK{else}\fail\BLOCK{endif}
+
+\end{multicols}
+
+\vspace{2mm}
+
+% ══════════════════════════════════════════════════════════════
+%  Step 8: LTB (full width — segment table)
+% ══════════════════════════════════════════════════════════════
+\section{Step 8: Lateral Torsional Buckling}
+{\footnotesize\itshape \S\,6.3.2.3 --- Rolled sections method}
+\vspace{2mm}
+
+\small
+Lateral restraints at: \VAR{restraint_pos_text}\,m
+$\;\Rightarrow\;$ \VAR{n_segments} unrestrained segment(s).
+
+$h/b = \VAR{h_over_b_disp}$\;
+\BLOCK{if h_over_b <= 2.0}$\leq 2$\BLOCK{else}$> 2$\BLOCK{endif}\;
+$\Rightarrow$ Curve \textbf{\VAR{curve}},\;
+$\alpha_{LT} = \VAR{alpha_LT}$,\;
+$\beta = \VAR{beta_LT}$,\;
+$\bar{\lambda}_{LT,0} = \VAR{lambda_LT_0}$
+
+\vspace{2mm}
+\begin{center}
+\footnotesize
+\begin{tabular}{@{}crrrrrrrrrrl@{}}
+\toprule
+\textbf{Seg} & \textbf{Range\,(m)} & $L_{cr}$ & $M_{Ed}$ & $C_1$ & $k_c$
+  & $M_{cr}$ & $\bar{\lambda}_{LT}$ & $\chi_{LT}$ & $f$ & $\chi_{mod}$
+  & $M_{b,Rd}$ \\
+& & mm & kNm & & & kNm & & & & & kNm \\
+\midrule
+\BLOCK{for seg in segments}%
+\VAR{seg.idx}
+  & \VAR{seg.start}--\VAR{seg.end}
+  & \VAR{seg.L_mm}
+  & \VAR{seg.MEd_seg}
+  & \VAR{seg.C1}
+  & \VAR{seg.kc}
+  & \VAR{seg.Mcr}
+  & \VAR{seg.lambda_LT}
+  & \VAR{seg.chi_LT}
+  & \VAR{seg.f_mod}
+  & \VAR{seg.chi_LT_mod}
+  & \VAR{seg.Mb_Rd}\BLOCK{if seg.governing}\;$\leftarrow$\BLOCK{endif} \\
+\BLOCK{endfor}%
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{1mm}
+\small
+\textbf{Governing segment \VAR{gov_seg_num}:}\;
+$M_{cr} = \VAR{Mcr}$\,kNm,\;
+$\bar{\lambda}_{LT} = \VAR{lambda_LT}$,\;
+$\chi_{LT} = \VAR{chi_LT}$,\;
+$k_c = \VAR{kc}$,\;
+$f = \VAR{f_mod}$,\;
+$\chi_{LT,mod} = \VAR{chi_LT_mod}$
+
+$M_{b,Rd} = \chi_{LT,mod} \cdot W_y \cdot f_y\,/\,\gamma_{M1}
+           = \VAR{chi_LT_mod} \times \VAR{Wy_cm3}{\times}10^3 \times \VAR{fy}\,/\,10^6
+           = \VAR{Mb_Rd}$\,kNm
+
+\medskip
+$M_{Ed}/M_{b,Rd} = \VAR{ltb_MEd}/\VAR{Mb_Rd} = \VAR{ltb_util}$\quad
+\BLOCK{if ltb_ok}\pass\BLOCK{else}\fail\BLOCK{endif}
+
+\vspace{4mm}
+
+% ══════════════════════════════════════════════════════════════
+%  Summary
+% ══════════════════════════════════════════════════════════════
+\section{Design Summary}
+\vspace{2mm}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{@{}lrrrl@{}}
+\toprule
+\textbf{Check} & \textbf{Capacity} & \textbf{Demand} & \textbf{Util.} & \\
+\midrule
+Bending (\S\,6.2.5)     & $M_{c,Rd} = \VAR{Mc_Rd}$\,kNm & $M_{Ed} = \VAR{MEd}$\,kNm & \VAR{bending_util} & \BLOCK{if bending_ok}\pass\BLOCK{else}\fail\BLOCK{endif} \\
+Shear (\S\,6.2.6)       & $V_{pl,Rd} = \VAR{Vpl_Rd}$\,kN & $V_{Ed} = \VAR{VEd}$\,kN & \VAR{shear_util} & \BLOCK{if shear_ok}\pass\BLOCK{else}\fail\BLOCK{endif} \\
+Shear buckling           & \multicolumn{2}{c}{$h_w/t_w = \VAR{hw_tw} \leq \VAR{hw_tw_limit}$} & --- & \BLOCK{if shear_buckling_ok}\pass\BLOCK{else}\fail\BLOCK{endif} \\
+Bending + Shear          & $M_{V,Rd} = \VAR{Mv_Rd}$\,kNm & $M_{Ed} = \VAR{MEd}$\,kNm & \VAR{combined_util} & \BLOCK{if combined_ok}\pass\BLOCK{else}\fail\BLOCK{endif} \\
+LTB (\S\,6.3.2.3)       & $M_{b,Rd} = \VAR{Mb_Rd}$\,kNm & $M_{Ed} = \VAR{ltb_MEd}$\,kNm & \VAR{ltb_util} & \BLOCK{if ltb_ok}\pass\BLOCK{else}\fail\BLOCK{endif} \\
+Deflection               & $\delta_{lim} = \VAR{delta_limit}$\,mm & $\delta = \VAR{delta_max}$\,mm & \VAR{deflection_util} & \BLOCK{if deflection_ok}\pass\BLOCK{else}\fail\BLOCK{endif} \\
+\midrule
+\multicolumn{4}{@{}l}{\textbf{OVERALL}} & \BLOCK{if overall_ok}\pass\BLOCK{else}\fail\BLOCK{endif} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\end{document}

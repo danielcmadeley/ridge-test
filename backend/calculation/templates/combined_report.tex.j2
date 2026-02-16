@@ -1,0 +1,869 @@
+\documentclass[a4paper,10pt]{article}
+\usepackage[left=15mm,right=15mm,top=35mm,bottom=15mm,headheight=22mm]{geometry}
+\usepackage[scaled=0.95]{helvet}
+\usepackage{sfmath}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{fancyhdr}
+\usepackage{xcolor}
+\usepackage{multicol}
+\usepackage{graphicx}
+\usepackage{eso-pic}
+\usepackage{titlesec}
+\usepackage{parskip}
+
+% ── Colours (green + neutral) ────────────────────────────────
+\definecolor{passgreen}{HTML}{166534}
+\definecolor{failred}{HTML}{B91C1C}
+\definecolor{headblue}{HTML}{166534}
+\definecolor{ruleblue}{HTML}{A3A3A3}
+
+\newcommand{\pass}{\textcolor{passgreen}{\textbf{PASS}}}
+\newcommand{\fail}{\textcolor{failred}{\textbf{FAIL}}}
+
+% ── Section formatting ───────────────────────────────────────
+\titleformat{\section}
+  {\small\bfseries\color{headblue}}{}{0em}{}
+  [\vspace{-0.4em}{\color{ruleblue}\rule{\columnwidth}{0.3pt}}]
+\titlespacing*{\section}{0pt}{6pt}{2pt}
+
+% ── Page header ──────────────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{%
+  \BLOCK{if has_logo}%
+  \includegraphics[height=10mm]{\VAR{logo_filename}}%
+  \BLOCK{else}%
+  \raisebox{2mm}{\textbf{\large\color{headblue}formandfunction}}%
+  \BLOCK{endif}%
+}
+\rhead{%
+  \scriptsize%
+  \begin{tabular}[b]{@{}r@{\,}l@{\quad}r@{\,}l@{}}
+    \textbf{Project:} & \VAR{project_title} & \textbf{Calcs by:} & \VAR{calcs_by} \\
+    \textbf{Job No:} & \VAR{job_no} & \textbf{Checked:} & \VAR{checked_by} \\
+    \textbf{Calcs for:} & \VAR{calcs_for} & \textbf{Approved:} & \VAR{approved_by} \\
+  \end{tabular}%
+}
+\renewcommand{\headrulewidth}{0.5pt}
+\cfoot{\scriptsize Page~\thepage}
+
+% ── Layout ───────────────────────────────────────────────────
+\setlength{\columnsep}{4mm}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{1.5pt}
+
+\begin{document}
+
+\BLOCK{if has_frontpage}
+\thispagestyle{empty}
+\AddToShipoutPictureBG*{%
+  \AtPageLowerLeft{\includegraphics[width=\paperwidth,height=\paperheight]{\VAR{frontpage_filename}}}%
+}
+\AddToShipoutPictureFG*{%
+  \AtPageLowerLeft{%
+    \put(145,165){%
+      \parbox[t]{300pt}{%
+        {\color{black}\sffamily\bfseries\large\MakeUppercase{\VAR{frontpage_project_name}}\\[4pt]}%
+        {\color{black}\sffamily\normalsize \VAR{frontpage_pack_title}\\[-1pt]}%
+        {\color{black}\sffamily\normalsize \VAR{frontpage_date}}%
+      }%
+    }%
+  }%
+}
+\mbox{}
+\clearpage
+\ClearShipoutPictureBG
+\ClearShipoutPictureFG
+\setcounter{page}{1}
+\BLOCK{endif}
+
+% ══════════════════════════════════════════════════════════════
+%  Title
+% ══════════════════════════════════════════════════════════════
+\begin{center}
+  {\large\bfseries\color{headblue} Structural Design Report}\\[2pt]
+  {\normalsize\bfseries \VAR{structure_name}}\\[2pt]
+  {\small EN 1993-1-1:2005 \;---\; \VAR{steel_grade}}\\[2pt]
+  {\footnotesize \VAR{n_elements} elements%
+    \BLOCK{if n_columns > 0} (\VAR{n_columns} column\BLOCK{if n_columns > 1}s\BLOCK{endif}%
+    \BLOCK{if n_beams > 0}, \VAR{n_beams} beam\BLOCK{if n_beams > 1}s\BLOCK{endif}\BLOCK{endif}%
+    \BLOCK{if n_truss > 0}, \VAR{n_truss} truss member\BLOCK{if n_truss > 1}s\BLOCK{endif}\BLOCK{endif})\BLOCK{endif}%
+  }
+\end{center}
+\vspace{-1mm}
+{\color{headblue}\hrule height 0.5pt}
+\vspace{4mm}
+
+% ══════════════════════════════════════════════════════════════
+%  Structure Diagrams
+% ══════════════════════════════════════════════════════════════
+\BLOCK{if plot_filenames}
+\begin{center}
+{\normalsize\bfseries\color{headblue} Structure Diagrams}
+\end{center}
+\vspace{-1mm}
+{\color{ruleblue}\rule{\textwidth}{0.3pt}}
+\vspace{2mm}
+
+%% for fname in plot_filenames
+\begin{center}
+\includegraphics[width=0.96\textwidth]{\VAR{fname}}%
+\end{center}
+
+\vspace{4mm}
+%% if loop.index is divisibleby 2 and not loop.last
+\newpage
+\begin{center}
+{\normalsize\bfseries\color{headblue} Structure Diagrams}
+\end{center}
+\vspace{-1mm}
+{\color{ruleblue}\rule{\textwidth}{0.3pt}}
+\vspace{2mm}
+%% endif
+%% endfor
+\BLOCK{endif}
+
+% ══════════════════════════════════════════════════════════════
+%  Reactions
+% ══════════════════════════════════════════════════════════════
+\begin{center}
+{\normalsize\bfseries\color{headblue} Support Reactions}
+\end{center}
+\vspace{-1mm}
+{\color{ruleblue}\rule{\textwidth}{0.3pt}}
+\vspace{2mm}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{@{}lccc@{}}
+\toprule
+\textbf{Node} & $F_x$ (kN) & $F_y$ (kN) & $M_z$ (kNm) \\
+\midrule
+%% for r in reactions
+\VAR{r.node} & \VAR{r.fx} & \VAR{r.fy} & \VAR{r.mz} \\
+%% endfor
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{4mm}
+
+% ██████████████████████████████████████████████████████████████
+%  COLUMN DESIGN — Full step-by-step for each column
+% ██████████████████████████████████████████████████████████████
+%% for d in column_details
+
+\newpage
+\begin{center}
+  {\normalsize\bfseries\color{headblue} Steel Column Design to Eurocode 3}\\[1pt]
+  {\footnotesize EN 1993-1-1:2005}\\[3pt]
+  {\small\bfseries Element: \VAR{d.elem_name} \;---\; \VAR{d.designation} \;---\; \VAR{d.steel_grade}}\\[1pt]
+  {\small $N_{Ed} = \VAR{d.NEd}$\,kN \qquad $M_{y,Ed} = \VAR{d.My_Ed}$\,kNm \qquad $M_{z,Ed} = \VAR{d.Mz_Ed}$\,kNm}
+\end{center}
+\vspace{-1mm}
+{\color{headblue}\hrule height 0.5pt}
+\vspace{3mm}
+
+% Section Properties
+{\small\bfseries\color{headblue} Section Properties}
+\vspace{-1mm}
+
+{\color{ruleblue}\rule{\textwidth}{0.3pt}}
+\vspace{1mm}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{@{}ll@{\quad}ll@{\quad}ll@{\quad}ll@{}}
+\toprule
+$h$        & \VAR{d.h}\,mm      & $b$        & \VAR{d.b}\,mm      & $t_w$      & \VAR{d.tw}\,mm     & $t_f$      & \VAR{d.tf}\,mm \\
+$r$        & \VAR{d.r}\,mm      & $d$        & \VAR{d.d}\,mm      & $A$        & \VAR{d.A_sec}\,cm$^2$ & $G$     & \VAR{d.mass}\,kg/m \\
+\midrule
+$I_y$      & \VAR{d.Iy}\,cm$^4$ & $I_z$      & \VAR{d.Iz_sec}\,cm$^4$ & $I_t$  & \VAR{d.It}\,cm$^4$ & $I_w$      & \VAR{d.Iw}\,cm$^6$ \\
+$W_{el,y}$ & \VAR{d.Wel_y}\,cm$^3$ & $W_{pl,y}$ & \VAR{d.Wpl_y}\,cm$^3$ & $W_{el,z}$ & \VAR{d.Wel_z}\,cm$^3$ & $W_{pl,z}$ & \VAR{d.Wpl_z}\,cm$^3$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+\vspace{2mm}
+
+% Steps 1–7 in 3 columns
+\begin{multicols}{3}
+\small
+
+\section{Step 1: Yield Strength}
+{\footnotesize\itshape Table 3.1}
+
+\VAR{d.steel_grade},\; $t_f = \VAR{d.tf}$\,mm
+
+$f_y = \VAR{d.fy}$\,N/mm$^2$
+
+$\varepsilon = \sqrt{235/\VAR{d.fy}} = \VAR{d.epsilon}$
+
+\section{Step 2: Classification}
+{\footnotesize\itshape Table 5.2 (compression + bending)}
+
+\textbf{Flange} (outstand):
+
+$c = (b{-}t_w)/2{-}r = \VAR{d.c_flange}$\,mm
+
+$c/t = \VAR{d.ct_flange}$
+
+$9\varepsilon = \VAR{d.fl_9e}$
+$\;\Rightarrow$ \textbf{Class \VAR{d.flange_class}}
+
+\medskip
+\textbf{Web} (internal, $\alpha = \VAR{d.alpha_web}$):
+
+$c/t = \VAR{d.c_web}/\VAR{d.tw} = \VAR{d.ct_web}$
+
+$\Rightarrow$ \textbf{Class \VAR{d.web_class}}
+
+\medskip
+\fbox{\textbf{Overall: Class \VAR{d.section_class}}}
+
+\section{Step 3: Axial Resistance}
+{\footnotesize\itshape \S\,6.2.4}
+
+$N_{Rd} = A \cdot f_y / \gamma_{M0}$
+
+$= \VAR{d.A_sec}{\times}10^2{\times}\VAR{d.fy} / 10^3$
+
+$= \VAR{d.NRd}$\,kN
+
+\medskip
+$N_{Ed}/N_{Rd} = \VAR{d.axial_util}$\;
+\BLOCK{if d.axial_ok}\pass\BLOCK{else}\fail\BLOCK{endif}
+
+\section{Step 4: Bending Resistance}
+{\footnotesize\itshape \S\,6.2.5}
+
+\BLOCK{if d.section_class <= 2}%
+Class \VAR{d.section_class} $\rightarrow W_{pl}$
+\BLOCK{else}%
+Class 3 $\rightarrow W_{el}$
+\BLOCK{endif}
+
+$M_{y,Rd} = W_y f_y / \gamma_{M0} = \VAR{d.My_Rd}$\,kNm
+
+$M_{z,Rd} = W_z f_y / \gamma_{M0} = \VAR{d.Mz_Rd}$\,kNm
+
+\section{Step 5: Shear Resistance}
+{\footnotesize\itshape \S\,6.2.6}
+
+$A_v = \VAR{d.Av}$\,mm$^2$
+
+$V_{pl,Rd} = A_v(f_y/\!\sqrt{3}) / \gamma_{M0}$
+
+$= \VAR{d.Vpl_Rd}$\,kN
+
+\medskip
+$V_{Ed}/V_{pl,Rd} = \VAR{d.shear_util}$\;
+\BLOCK{if d.shear_ok}\pass\BLOCK{else}\fail\BLOCK{endif}
+
+\section{Step 6: Combined (Cons.)}
+{\footnotesize\itshape \S\,6.2.1(7)}
+
+$\frac{N_{Ed}}{N_{Rd}} + \frac{M_{y,Ed}}{M_{y,Rd}} + \frac{M_{z,Ed}}{M_{z,Rd}} \leq 1.0$
+
+\medskip
+Utilisation $= \VAR{d.conservative_util}$\;
+\BLOCK{if d.conservative_ok}\pass\BLOCK{else}\fail\BLOCK{endif}
+
+\section{Step 7: Combined (Alt.)}
+{\footnotesize\itshape \S\,6.2.9.1}
+
+$a_w = \VAR{d.a_w}$
+
+$M_{N,y,Rd} = \VAR{d.MN_y_Rd}$\,kNm
+
+$M_{N,z,Rd} = \VAR{d.MN_z_Rd}$\,kNm
+
+$\alpha = \VAR{d.alpha_interact}$,\;
+$\beta = \VAR{d.beta_interact}$
+
+\medskip
+$\left[\frac{M_{y,Ed}}{M_{N,y,Rd}}\right]^\alpha + \left[\frac{M_{z,Ed}}{M_{N,z,Rd}}\right]^\beta$
+
+$= \VAR{d.alternative_util}$\;
+\BLOCK{if d.alternative_ok}\pass\BLOCK{else}\fail\BLOCK{endif}
+
+\end{multicols}
+
+\vspace{2mm}
+
+% Step 8: Flexural Buckling (full width)
+\section{Step 8: Flexural Buckling}
+{\footnotesize\itshape \S\,6.3.1}
+\vspace{2mm}
+
+\small
+$\lambda_1 = 93.9\varepsilon = \VAR{d.lambda_1}$
+
+\vspace{2mm}
+\begin{center}
+\footnotesize
+\begin{tabular}{@{}lcccccccc@{}}
+\toprule
+\textbf{Axis} & $L_{cr}$\,(m) & $i$\,(mm) & $\bar{\lambda}$ & Curve & $\alpha$ & $\Phi$ & $\chi$ \\
+\midrule
+$y$-$y$ & \VAR{d.Lcr_y} & \VAR{d.iy_mm} & \VAR{d.lambda_bar_y} & \VAR{d.curve_y} & \VAR{d.alpha_y} & \VAR{d.Phi_y} & \VAR{d.chi_y} \\
+$z$-$z$ & \VAR{d.Lcr_z} & \VAR{d.iz_mm} & \VAR{d.lambda_bar_z} & \VAR{d.curve_z} & \VAR{d.alpha_z} & \VAR{d.Phi_z} & \VAR{d.chi_z} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{1mm}
+$N_{b,Rd} = \chi_{\min} \cdot A \cdot f_y / \gamma_{M1} = \VAR{d.Nb_Rd}$\,kN
+\qquad
+$N_{Ed}/N_{b,Rd} = \VAR{d.NEd}/\VAR{d.Nb_Rd}$\;
+\BLOCK{if d.buckling_ok}\pass\BLOCK{else}\fail\BLOCK{endif}
+
+\vspace{4mm}
+
+% Step 9: LTB (full width)
+\section{Step 9: Lateral Torsional Buckling}
+{\footnotesize\itshape \S\,6.3.2.3 --- Rolled sections method}
+\vspace{2mm}
+
+\small
+$h/b = \VAR{d.h_over_b_disp}$\;
+\BLOCK{if d.h_over_b <= 2.0}$\leq 2$\BLOCK{else}$> 2$\BLOCK{endif}\;
+$\Rightarrow$ Curve \textbf{\VAR{d.curve_LT}},\;
+$\alpha_{LT} = \VAR{d.alpha_LT}$
+
+$M_{cr} = \VAR{d.Mcr}$\,kNm \qquad
+$\bar{\lambda}_{LT} = \VAR{d.lambda_LT}$ \qquad
+$\chi_{LT} = \VAR{d.chi_LT}$
+
+$M_{b,Rd} = \chi_{LT} \cdot W_y \cdot f_y / \gamma_{M1} = \VAR{d.Mb_Rd}$\,kNm
+
+\vspace{4mm}
+
+% Step 10: Combined Buckling — Annex A (full width)
+\section{Step 10: Combined Buckling --- Annex A}
+{\footnotesize\itshape \S\,6.3.3, Expressions 6.61/6.62}
+\vspace{2mm}
+
+\small
+\textbf{Critical forces:}\;
+$N_{cr,y} = \VAR{d.Ncr_y}$\,kN,\;
+$N_{cr,z} = \VAR{d.Ncr_z}$\,kN,\;
+$N_{cr,T} = \VAR{d.Ncr_T}$\,kN
+
+\medskip
+\textbf{Moment factors} ($\psi_y = \VAR{d.psi_y}$, $\psi_z = \VAR{d.psi_z}$):\;
+$C_{my} = \VAR{d.Cmy}$,\;
+$C_{mz} = \VAR{d.Cmz}$,\;
+$C_{mLT} = \VAR{d.CmLT}$
+
+\medskip
+$a_{LT} = \VAR{d.aLT}$
+
+\medskip
+\textbf{Interaction factors:}
+
+\vspace{1mm}
+\begin{center}
+\footnotesize
+\begin{tabular}{@{}cccc@{}}
+\toprule
+$k_{yy}$ & $k_{yz}$ & $k_{zy}$ & $k_{zz}$ \\
+\midrule
+\VAR{d.kyy} & \VAR{d.kyz} & \VAR{d.kzy} & \VAR{d.kzz} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{2mm}
+\textbf{Expression 6.61:}
+
+$\displaystyle\frac{N_{Ed}}{\chi_y N_{Rk}/\gamma_{M1}} + k_{yy}\frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}} + k_{yz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}} = \VAR{d.eq6_61}$\;
+\BLOCK{if d.eq6_61 is string}---\BLOCK{elif d.eq6_61|float <= 1.0}\pass\BLOCK{else}\fail\BLOCK{endif}
+
+\medskip
+\textbf{Expression 6.62:}
+
+$\displaystyle\frac{N_{Ed}}{\chi_z N_{Rk}/\gamma_{M1}} + k_{zy}\frac{M_{y,Ed}}{\chi_{LT} M_{y,Rk}/\gamma_{M1}} + k_{zz}\frac{M_{z,Ed}}{M_{z,Rk}/\gamma_{M1}} = \VAR{d.eq6_62}$\;
+\BLOCK{if d.eq6_62 is string}---\BLOCK{elif d.eq6_62|float <= 1.0}\pass\BLOCK{else}\fail\BLOCK{endif}
+
+\vspace{4mm}
+
+% Column Design Summary
+\section{Design Summary --- \VAR{d.elem_name}}
+\vspace{2mm}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{@{}lrrrl@{}}
+\toprule
+\textbf{Check} & \textbf{Capacity} & \textbf{Demand} & \textbf{Util.} & \\
+\midrule
+Axial (\S\,6.2.4)          & $N_{Rd} = \VAR{d.NRd}$\,kN  & $N_{Ed} = \VAR{d.NEd}$\,kN  & \VAR{d.axial_util} & \BLOCK{if d.axial_ok}\pass\BLOCK{else}\fail\BLOCK{endif} \\
+Shear (\S\,6.2.6)          & $V_{pl,Rd} = \VAR{d.Vpl_Rd}$\,kN & $V_{Ed} = \VAR{d.VEd}$\,kN & \VAR{d.shear_util} & \BLOCK{if d.shear_ok}\pass\BLOCK{else}\fail\BLOCK{endif} \\
+Combined cons.\ (\S\,6.2.1) & \multicolumn{2}{c}{$N/N_{Rd}+M_y/M_{y,Rd}+M_z/M_{z,Rd}$} & \VAR{d.conservative_util} & \BLOCK{if d.conservative_ok}\pass\BLOCK{else}\fail\BLOCK{endif} \\
+Combined alt.\ (\S\,6.2.9)  & \multicolumn{2}{c}{$[M_y/M_{N,y}]^\alpha+[M_z/M_{N,z}]^\beta$} & \VAR{d.alternative_util} & \BLOCK{if d.alternative_ok}\pass\BLOCK{else}\fail\BLOCK{endif} \\
+Flex.\ buckling (\S\,6.3.1) & $N_{b,Rd} = \VAR{d.Nb_Rd}$\,kN & $N_{Ed} = \VAR{d.NEd}$\,kN & --- & \BLOCK{if d.buckling_ok}\pass\BLOCK{else}\fail\BLOCK{endif} \\
+Eq.\,6.61 (Annex A)         & \multicolumn{2}{c}{Interaction} & \VAR{d.eq6_61} & \BLOCK{if d.eq6_61|float <= 1.0}\pass\BLOCK{else}\fail\BLOCK{endif} \\
+Eq.\,6.62 (Annex A)         & \multicolumn{2}{c}{Interaction} & \VAR{d.eq6_62} & \BLOCK{if d.eq6_62|float <= 1.0}\pass\BLOCK{else}\fail\BLOCK{endif} \\
+\midrule
+\multicolumn{4}{@{}l}{\textbf{OVERALL}} & \BLOCK{if d.overall_ok}\pass\BLOCK{else}\fail\BLOCK{endif} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+%% endfor
+
+% ██████████████████████████████████████████████████████████████
+%  BEAM DESIGN — Full step-by-step for each beam
+% ██████████████████████████████████████████████████████████████
+%% for d in beam_details
+
+\newpage
+\begin{center}
+  {\normalsize\bfseries\color{headblue} Steel Beam Design to Eurocode 3}\\[1pt]
+  {\footnotesize EN 1993-1-1:2005}\\[3pt]
+  {\small\bfseries Element: \VAR{d.elem_name} \;---\; \VAR{d.designation} \;---\; \VAR{d.steel_grade} \;---\; Span\,=\,\VAR{d.span}\,m}\\[1pt]
+  {\small $M_{Ed} = \VAR{d.MEd}$\,kNm \qquad $V_{Ed} = \VAR{d.VEd}$\,kN}
+\end{center}
+\vspace{-1mm}
+{\color{headblue}\hrule height 0.5pt}
+\vspace{3mm}
+
+% Section Properties
+{\small\bfseries\color{headblue} Section Properties}
+\vspace{-1mm}
+
+{\color{ruleblue}\rule{\textwidth}{0.3pt}}
+\vspace{1mm}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{@{}ll@{\quad}ll@{\quad}ll@{\quad}ll@{}}
+\toprule
+$h$        & \VAR{d.h}\,mm      & $b$        & \VAR{d.b}\,mm      & $t_w$      & \VAR{d.tw}\,mm     & $t_f$      & \VAR{d.tf}\,mm \\
+$r$        & \VAR{d.r}\,mm      & $d$        & \VAR{d.d}\,mm      & $A$        & \VAR{d.A_sec}\,cm$^2$ & $G$     & \VAR{d.mass}\,kg/m \\
+\midrule
+$I_y$      & \VAR{d.Iy}\,cm$^4$ & $I_z$      & \VAR{d.Iz_sec}\,cm$^4$ & $I_t$  & \VAR{d.It}\,cm$^4$ & $I_w$      & \VAR{d.Iw}\,cm$^6$ \\
+$W_{el,y}$ & \VAR{d.Wel_y}\,cm$^3$ & $W_{pl,y}$ & \VAR{d.Wpl_y}\,cm$^3$ & & & & \\
+\bottomrule
+\end{tabular}
+\end{center}
+\vspace{2mm}
+
+% Steps 1–6 + 9 in 3 columns
+\begin{multicols}{3}
+\small
+
+\section{Step 1: Yield Strength}
+{\footnotesize\itshape Table 3.1}
+
+\VAR{d.steel_grade},\; $t_f = \VAR{d.tf}$\,mm
+
+$f_y = \VAR{d.fy}$\,N/mm$^2$
+
+$\varepsilon = \sqrt{235/\VAR{d.fy}} = \VAR{d.epsilon}$
+
+\section{Step 2: Classification}
+{\footnotesize\itshape Table 5.2}
+
+\textbf{Web} (internal part):
+
+$c/t = \VAR{d.c_web}/\VAR{d.tw} = \VAR{d.ct_web}$
+
+$72\varepsilon = \VAR{d.web_72e}$
+$\;\Rightarrow$ \textbf{Class \VAR{d.web_class}}
+
+\medskip
+\textbf{Flange} (outstand):
+
+$c = (b{-}t_w)/2{-}r = \VAR{d.c_flange}$\,mm
+
+$c/t = \VAR{d.c_flange}/\VAR{d.tf} = \VAR{d.ct_flange}$
+
+$9\varepsilon = \VAR{d.fl_9e}$
+$\;\Rightarrow$ \textbf{Class \VAR{d.flange_class}}
+
+\medskip
+\fbox{\textbf{Overall: Class \VAR{d.section_class}}}
+
+\section{Step 3: Bending}
+{\footnotesize\itshape \S\,6.2.5}
+
+\BLOCK{if d.section_class <= 2}%
+Class \VAR{d.section_class} $\rightarrow W_{pl,y}$
+\BLOCK{else}%
+Class 3 $\rightarrow W_{el,y}$
+\BLOCK{endif}
+
+$M_{c,Rd} = W_y \cdot f_y\,/\,\gamma_{M0}$
+
+$= \VAR{d.Wy_cm3}{\times}10^3{\times}\VAR{d.fy}\,/\,10^6$
+
+$= \VAR{d.Mc_Rd}$\,kNm
+
+\medskip
+$M_{Ed}/M_{c,Rd} = \VAR{d.bending_util}$\;
+\BLOCK{if d.bending_ok}\pass\BLOCK{else}\fail\BLOCK{endif}
+
+\section{Step 4: Shear}
+{\footnotesize\itshape \S\,6.2.6}
+
+$A_v = \VAR{d.Av}$\,mm$^2$
+
+$V_{pl,Rd} = A_v(f_y/\!\sqrt{3})\,/\,\gamma_{M0}$
+
+$= \VAR{d.Vpl_Rd}$\,kN
+
+\medskip
+$V_{Ed}/V_{pl,Rd} = \VAR{d.shear_util}$\;
+\BLOCK{if d.shear_ok}\pass\BLOCK{else}\fail\BLOCK{endif}
+
+\section{Step 5: Shear Buckling}
+{\footnotesize\itshape Expression 6.22}
+
+$h_w/t_w = \VAR{d.hw_tw}$
+
+$72\varepsilon/\eta = \VAR{d.hw_tw_limit}$
+
+\medskip
+$\VAR{d.hw_tw} \leq \VAR{d.hw_tw_limit}$\;
+\BLOCK{if d.shear_buckling_ok}\pass\BLOCK{else}\fail\BLOCK{endif}
+
+\section{Step 6: Bending + Shear}
+{\footnotesize\itshape \S\,6.2.8}
+
+\BLOCK{if d.low_shear}%
+$V_{Ed} = \VAR{d.VEd} \leq 0.5\,V_{pl,Rd}$
+
+$= \VAR{d.half_Vpl}$\,kN
+
+Low shear --- no reduction.
+
+$M_{V,Rd} = M_{c,Rd} = \VAR{d.Mv_Rd}$\,kNm
+\BLOCK{else}%
+$\rho = (2V_{Ed}/V_{pl,Rd} - 1)^2$
+
+$= \VAR{d.rho}$
+
+$M_{V,Rd} = \VAR{d.Mv_Rd}$\,kNm
+\BLOCK{endif}
+
+\medskip
+$M_{Ed}/M_{V,Rd} = \VAR{d.combined_util}$\;
+\BLOCK{if d.combined_ok}\pass\BLOCK{else}\fail\BLOCK{endif}
+
+\section{Step 9: Deflection}
+{\footnotesize\itshape EN\,1990 Annex A1.4}
+
+$\delta_{max} = \VAR{d.delta_max}$\,mm
+
+$\delta_{limit} = L/\VAR{d.defl_ratio_int}$
+
+$= \VAR{d.span_mm}/\VAR{d.defl_ratio_int} = \VAR{d.delta_limit}$\,mm
+
+\medskip
+$\delta/\delta_{limit} = \VAR{d.deflection_util}$\;
+\BLOCK{if d.deflection_ok}\pass\BLOCK{else}\fail\BLOCK{endif}
+
+\end{multicols}
+
+\vspace{2mm}
+
+% Step 8: LTB (full width with segment table)
+\section{Step 8: Lateral Torsional Buckling}
+{\footnotesize\itshape \S\,6.3.2.3 --- Rolled sections method}
+\vspace{2mm}
+
+\small
+Lateral restraints at: \VAR{d.restraint_pos_text}\,m
+$\;\Rightarrow\;$ \VAR{d.n_segments} unrestrained segment(s).
+
+$h/b = \VAR{d.h_over_b_disp}$\;
+\BLOCK{if d.h_over_b <= 2.0}$\leq 2$\BLOCK{else}$> 2$\BLOCK{endif}\;
+$\Rightarrow$ Curve \textbf{\VAR{d.curve}},\;
+$\alpha_{LT} = \VAR{d.alpha_LT}$,\;
+$\beta = \VAR{d.beta_LT}$,\;
+$\bar{\lambda}_{LT,0} = \VAR{d.lambda_LT_0}$
+
+\vspace{2mm}
+\begin{center}
+\footnotesize
+\begin{tabular}{@{}crrrrrrrrrrl@{}}
+\toprule
+\textbf{Seg} & \textbf{Range\,(m)} & $L_{cr}$ & $M_{Ed}$ & $C_1$ & $k_c$
+  & $M_{cr}$ & $\bar{\lambda}_{LT}$ & $\chi_{LT}$ & $f$ & $\chi_{mod}$
+  & $M_{b,Rd}$ \\
+& & mm & kNm & & & kNm & & & & & kNm \\
+\midrule
+\BLOCK{for seg in d.segments}%
+\VAR{seg.idx}
+  & \VAR{seg.start}--\VAR{seg.end}
+  & \VAR{seg.L_mm}
+  & \VAR{seg.MEd_seg}
+  & \VAR{seg.C1}
+  & \VAR{seg.kc}
+  & \VAR{seg.Mcr}
+  & \VAR{seg.lambda_LT}
+  & \VAR{seg.chi_LT}
+  & \VAR{seg.f_mod}
+  & \VAR{seg.chi_LT_mod}
+  & \VAR{seg.Mb_Rd}\BLOCK{if seg.governing}\;$\leftarrow$\BLOCK{endif} \\
+\BLOCK{endfor}%
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{1mm}
+\small
+\textbf{Governing segment \VAR{d.gov_seg_num}:}\;
+$M_{cr} = \VAR{d.Mcr}$\,kNm,\;
+$\bar{\lambda}_{LT} = \VAR{d.lambda_LT}$,\;
+$\chi_{LT} = \VAR{d.chi_LT}$,\;
+$k_c = \VAR{d.kc}$,\;
+$f = \VAR{d.f_mod}$,\;
+$\chi_{LT,mod} = \VAR{d.chi_LT_mod}$
+
+$M_{b,Rd} = \chi_{LT,mod} \cdot W_y \cdot f_y\,/\,\gamma_{M1}
+           = \VAR{d.chi_LT_mod} \times \VAR{d.Wy_cm3}{\times}10^3 \times \VAR{d.fy}\,/\,10^6
+           = \VAR{d.Mb_Rd}$\,kNm
+
+\medskip
+$M_{Ed}/M_{b,Rd} = \VAR{d.ltb_MEd}/\VAR{d.Mb_Rd} = \VAR{d.ltb_util}$\quad
+\BLOCK{if d.ltb_ok}\pass\BLOCK{else}\fail\BLOCK{endif}
+
+\vspace{4mm}
+
+% Beam Design Summary
+\section{Design Summary --- \VAR{d.elem_name}}
+\vspace{2mm}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{@{}lrrrl@{}}
+\toprule
+\textbf{Check} & \textbf{Capacity} & \textbf{Demand} & \textbf{Util.} & \\
+\midrule
+Bending (\S\,6.2.5)     & $M_{c,Rd} = \VAR{d.Mc_Rd}$\,kNm & $M_{Ed} = \VAR{d.MEd}$\,kNm & \VAR{d.bending_util} & \BLOCK{if d.bending_ok}\pass\BLOCK{else}\fail\BLOCK{endif} \\
+Shear (\S\,6.2.6)       & $V_{pl,Rd} = \VAR{d.Vpl_Rd}$\,kN & $V_{Ed} = \VAR{d.VEd}$\,kN & \VAR{d.shear_util} & \BLOCK{if d.shear_ok}\pass\BLOCK{else}\fail\BLOCK{endif} \\
+Shear buckling           & \multicolumn{2}{c}{$h_w/t_w = \VAR{d.hw_tw} \leq \VAR{d.hw_tw_limit}$} & --- & \BLOCK{if d.shear_buckling_ok}\pass\BLOCK{else}\fail\BLOCK{endif} \\
+Bending + Shear          & $M_{V,Rd} = \VAR{d.Mv_Rd}$\,kNm & $M_{Ed} = \VAR{d.MEd}$\,kNm & \VAR{d.combined_util} & \BLOCK{if d.combined_ok}\pass\BLOCK{else}\fail\BLOCK{endif} \\
+LTB (\S\,6.3.2.3)       & $M_{b,Rd} = \VAR{d.Mb_Rd}$\,kNm & $M_{Ed} = \VAR{d.ltb_MEd}$\,kNm & \VAR{d.ltb_util} & \BLOCK{if d.ltb_ok}\pass\BLOCK{else}\fail\BLOCK{endif} \\
+Deflection               & $\delta_{lim} = \VAR{d.delta_limit}$\,mm & $\delta = \VAR{d.delta_max}$\,mm & \VAR{d.deflection_util} & \BLOCK{if d.deflection_ok}\pass\BLOCK{else}\fail\BLOCK{endif} \\
+\midrule
+\multicolumn{4}{@{}l}{\textbf{OVERALL}} & \BLOCK{if d.overall_ok}\pass\BLOCK{else}\fail\BLOCK{endif} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+%% endfor
+
+% ██████████████████████████████████████████████████████████████
+%  TRUSS MEMBER DESIGN — Full step-by-step for each member
+% ██████████████████████████████████████████████████████████████
+%% for d in truss_details
+
+\newpage
+\begin{center}
+  {\normalsize\bfseries\color{headblue} Steel Truss Member Design to Eurocode 3}\\[1pt]
+  {\footnotesize EN 1993-1-1:2005}\\[3pt]
+  {\small\bfseries Element: \VAR{d.elem_name} \;---\; \VAR{d.designation} \;---\; \VAR{d.steel_grade}}\\[1pt]
+  {\small $N_{Ed,comp} = \VAR{d.NEd_comp}$\,kN \qquad $N_{Ed,tens} = \VAR{d.NEd_tens}$\,kN}
+\end{center}
+\vspace{-1mm}
+{\color{headblue}\hrule height 0.5pt}
+\vspace{3mm}
+
+% Section Properties
+{\small\bfseries\color{headblue} Section Properties (\VAR{d.section_type})}
+\vspace{-1mm}
+
+{\color{ruleblue}\rule{\textwidth}{0.3pt}}
+\vspace{1mm}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{@{}ll@{\quad}ll@{\quad}ll@{\quad}ll@{}}
+\toprule
+$h$        & \VAR{d.h}\,mm      & $b$        & \VAR{d.b}\,mm      & $t$        & \VAR{d.t}\,mm      & $A$        & \VAR{d.A_sec}\,cm$^2$ \\
+$I_y$      & \VAR{d.Iy}\,cm$^4$ & $I_z$      & \VAR{d.Iz_sec}\,cm$^4$ & $i_y$  & \VAR{d.iy}\,mm     & $i_z$      & \VAR{d.iz}\,mm \\
+$W_{el,y}$ & \VAR{d.Wel_y}\,cm$^3$ & $W_{pl,y}$ & \VAR{d.Wpl_y}\,cm$^3$ & $W_{el,z}$ & \VAR{d.Wel_z}\,cm$^3$ & $W_{pl,z}$ & \VAR{d.Wpl_z}\,cm$^3$ \\
+\midrule
+\multicolumn{4}{@{}l}{Mass: \VAR{d.mass}\,kg/m} & \multicolumn{4}{l}{$L_{cr,ip} = \VAR{d.Lcr_ip}$\,m \quad $L_{cr,oop} = \VAR{d.Lcr_oop}$\,m} \\
+\bottomrule
+\end{tabular}
+\end{center}
+\vspace{2mm}
+
+% Steps 1–4 in 2 columns
+\begin{multicols}{2}
+\small
+
+\section{Step 1: Yield Strength}
+{\footnotesize\itshape Table 3.1}
+
+\VAR{d.steel_grade},\; $t = \VAR{d.t}$\,mm
+
+$f_y = \VAR{d.fy}$\,N/mm$^2$
+
+$\varepsilon = \sqrt{235/\VAR{d.fy}} = \VAR{d.epsilon}$
+
+\section{Step 2: Classification}
+{\footnotesize\itshape Table 5.2 --- Internal compression parts}
+
+$c = h - 2t = \VAR{d.c_h}$\,mm
+
+$c/t = \VAR{d.ct_gov}$
+
+\medskip
+Limits: $33\varepsilon = \VAR{d.limit_33e}$,\;
+$38\varepsilon = \VAR{d.limit_38e}$,\;
+$42\varepsilon = \VAR{d.limit_42e}$
+
+\medskip
+\fbox{\textbf{Class \VAR{d.section_class}}}
+
+\section{Step 3: Cross-section Resistance}
+{\footnotesize\itshape \S\,6.2.4}
+
+$N_{Rd} = A \cdot f_y / \gamma_{M0}$
+
+$= \VAR{d.A_sec}{\times}10^2{\times}\VAR{d.fy} / 10^3$
+
+$= \VAR{d.NRd}$\,kN
+
+\columnbreak
+
+\section{Step 4: Flexural Buckling}
+{\footnotesize\itshape \S\,6.3.1}
+
+$\lambda_1 = 93.9\varepsilon = \VAR{d.lambda_1}$
+
+\medskip
+\textbf{In-plane:}
+
+$\bar{\lambda}_{ip} = L_{cr,ip}{\times}10^3 / (i \cdot \lambda_1)$
+
+$= \VAR{d.lambda_bar_ip}$
+
+\medskip
+\textbf{Out-of-plane:}
+
+$\bar{\lambda}_{oop} = L_{cr,oop}{\times}10^3 / (i \cdot \lambda_1)$
+
+$= \VAR{d.lambda_bar_oop}$
+
+\medskip
+Governing $\bar{\lambda} = \VAR{d.lambda_bar}$
+
+\medskip
+Curve \textbf{\VAR{d.buckling_curve}},\;
+$\alpha = \VAR{d.alpha_imp}$
+
+$\Phi = 0.5[1+\alpha(\bar{\lambda}-0.2)+\bar{\lambda}^2]$
+
+$= \VAR{d.Phi}$
+
+$\chi = 1/(\Phi+\sqrt{\Phi^2-\bar{\lambda}^2})$
+
+$= \VAR{d.chi}$
+
+\medskip
+$N_{b,Rd} = \chi \cdot A \cdot f_y / \gamma_{M1}$
+
+$= \VAR{d.Nb_Rd}$\,kN
+
+\end{multicols}
+
+\vspace{2mm}
+
+% Step 5: Compression Check (full width)
+\section{Step 5: Compression Check}
+
+\small
+$N_{Ed,comp} = \VAR{d.NEd_comp}$\,kN
+\qquad
+$N_{b,Rd} = \VAR{d.Nb_Rd}$\,kN
+
+\medskip
+$N_{Ed}/N_{b,Rd} = \VAR{d.compression_util}$\;
+\BLOCK{if d.compression_ok}\pass\BLOCK{else}\fail\BLOCK{endif}
+
+\vspace{4mm}
+
+% Steps 6–7: Tension Check (full width)
+\section{Steps 6--7: Tension Check}
+{\footnotesize\itshape \S\,6.2.3}
+
+\small
+\BLOCK{if d.has_holes}%
+$N_{t,Rd} = \min(N_{pl,Rd},\; 0.9 A_{net} f_u / \gamma_{M2})$
+\BLOCK{else}%
+No holes $\Rightarrow N_{t,Rd} = N_{pl,Rd} = A \cdot f_y / \gamma_{M0}$
+\BLOCK{endif}
+
+$N_{t,Rd} = \VAR{d.Nt_Rd}$\,kN
+
+\medskip
+$N_{Ed,tens} = \VAR{d.NEd_tens}$\,kN
+
+$N_{Ed}/N_{t,Rd} = \VAR{d.tension_util}$\;
+\BLOCK{if d.tension_ok}\pass\BLOCK{else}\fail\BLOCK{endif}
+
+\vspace{4mm}
+
+% Truss Member Design Summary
+\section{Design Summary --- \VAR{d.elem_name}}
+\vspace{2mm}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{@{}lrrrl@{}}
+\toprule
+\textbf{Check} & \textbf{Capacity} & \textbf{Demand} & \textbf{Util.} & \\
+\midrule
+Compression (\S\,6.3.1)  & $N_{b,Rd} = \VAR{d.Nb_Rd}$\,kN & $N_{Ed} = \VAR{d.NEd_comp}$\,kN & \VAR{d.compression_util} & \BLOCK{if d.compression_ok}\pass\BLOCK{else}\fail\BLOCK{endif} \\
+Tension (\S\,6.2.3)      & $N_{t,Rd} = \VAR{d.Nt_Rd}$\,kN & $N_{Ed} = \VAR{d.NEd_tens}$\,kN & \VAR{d.tension_util} & \BLOCK{if d.tension_ok}\pass\BLOCK{else}\fail\BLOCK{endif} \\
+\midrule
+\multicolumn{4}{@{}l}{\textbf{OVERALL}} & \BLOCK{if d.overall_ok}\pass\BLOCK{else}\fail\BLOCK{endif} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+%% endfor
+
+% ██████████████████████████████████████████████████████████████
+%  OVERALL DESIGN SUMMARY
+% ██████████████████████████████████████████████████████████████
+\newpage
+
+\begin{center}
+{\normalsize\bfseries\color{headblue} Overall Design Summary}
+\end{center}
+\vspace{-1mm}
+{\color{ruleblue}\rule{\textwidth}{0.3pt}}
+\vspace{4mm}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{@{}llcccc@{}}
+\toprule
+\textbf{Element} & \textbf{Role} & \textbf{Designation} & $L$ (m) & \textbf{Governing Check} & \textbf{Utilisation} \\
+\midrule
+%% for s in summary_rows
+\VAR{s.name} & \VAR{s.role} & \VAR{s.designation} & \VAR{s.length} & \VAR{s.governing} & \BLOCK{if s.ok}\textcolor{passgreen}{\VAR{s.util}}\BLOCK{else}\textcolor{failred}{\VAR{s.util}}\BLOCK{endif} \\
+%% endfor
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{6mm}
+\begin{center}
+\BLOCK{if all_pass}
+{\Large\textcolor{passgreen}{\textbf{ALL CHECKS PASS}}}
+\BLOCK{else}
+{\Large\textcolor{failred}{\textbf{SOME CHECKS FAIL}}}
+\BLOCK{endif}
+\end{center}
+
+\end{document}
