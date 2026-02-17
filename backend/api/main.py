@@ -28,10 +28,6 @@ from calculation.load_takedown3d.types import (
     Vec3,
     Wall,
 )
-from calculation.section_properties import (
-    SectionRectangle,
-    calculate_custom_section_properties,
-)
 from calculation.designer import ElementRole
 from calculation.ec3 import BeamDesignEC3, ColumnDesignEC3, TrussMemberDesignEC3
 
@@ -264,6 +260,11 @@ def section_properties(data: SectionPropertiesRequest) -> SectionPropertiesOutpu
         )
 
     try:
+        from calculation.section_properties import (
+            SectionRectangle,
+            calculate_custom_section_properties,
+        )
+
         props = calculate_custom_section_properties(
             [
                 SectionRectangle(
@@ -277,6 +278,14 @@ def section_properties(data: SectionPropertiesRequest) -> SectionPropertiesOutpu
             ]
         )
         return SectionPropertiesOutput(**props)
+    except (ImportError, ModuleNotFoundError) as e:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Section property calculation dependencies are unavailable in this "
+                f"deployment environment: {e}"
+            ),
+        )
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:

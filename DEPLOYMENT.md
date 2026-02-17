@@ -33,12 +33,13 @@ In Cloudflare, create a Worker and connect this repository, using `web/` as the 
 Build/deploy commands:
 
 - Install: `npm install`
-- Build: `npm run build`
+- Build: leave blank (or a no-op)
 - Deploy: `npm run deploy`
 
 Set frontend environment variable:
 
 - `VITE_API_BASE_URL=https://<your-railway-backend-domain>`
+- `NODE_OPTIONS=--max-old-space-size=4096` (prevents SSR bundle OOM on CI builders)
 
 For local development, `web/.env` defaults to `http://localhost:8000`.
 
