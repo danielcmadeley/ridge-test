@@ -24,7 +24,7 @@ def _slugify(name: str) -> str:
 
 
 def _configure_browser_path_for_kaleido() -> None:
-    """Prefer Microsoft Edge for Kaleido if available."""
+    """Configure a browser binary for Kaleido image exports."""
     if os.environ.get("BROWSER_PATH"):
         return
 
@@ -48,6 +48,9 @@ def _configure_browser_path_for_kaleido() -> None:
                 "/usr/bin/microsoft-edge",
                 "/usr/bin/microsoft-edge-beta",
                 "/usr/bin/microsoft-edge-dev",
+                "/usr/bin/chromium",
+                "/usr/bin/chromium-browser",
+                "/usr/bin/google-chrome",
             ]
         )
 
@@ -56,6 +59,9 @@ def _configure_browser_path_for_kaleido() -> None:
         "microsoft-edge",
         "microsoft-edge-beta",
         "microsoft-edge-dev",
+        "chromium",
+        "chromium-browser",
+        "google-chrome",
     ):
         found = shutil.which(exe_name)
         if found:
