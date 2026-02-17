@@ -49,3 +49,5 @@ For local development, `web/.env` defaults to `http://localhost:8000`.
 2. Open frontend URL and run a sample analysis.
 3. Confirm API requests from frontend target Railway URL.
 4. If requests fail with CORS, update `CORS_ORIGINS` in Railway and redeploy.
+
+Delete once deployed
