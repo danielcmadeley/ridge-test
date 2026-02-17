@@ -10,15 +10,27 @@ import type {
   StructureInput,
 } from './types'
 
-const API_BASE = (
+const configuredApiBase = (
   import.meta.env.VITE_API_BASE_URL as string | undefined
-)?.replace(/\/+$/, '') || 'http://localhost:8000'
+)?.replace(/\/+$/, '')
+
+const API_BASE = configuredApiBase || (import.meta.env.DEV ? 'http://localhost:8000' : '')
+
+function getApiBase(): string {
+  if (API_BASE) {
+    return API_BASE
+  }
+
+  throw new Error(
+    'Missing VITE_API_BASE_URL in production build. Set it in Cloudflare build environment variables and redeploy.',
+  )
+}
 
 async function apiFetch<T>(
   path: string,
   options?: RequestInit,
 ): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(`${getApiBase()}${path}`, {
     headers: { 'Content-Type': 'application/json' },
     ...options,
   })
@@ -56,7 +68,7 @@ export async function fetchDiagrams(
 export async function downloadReport(
   data: StructureInput,
 ): Promise<Blob> {
-  const res = await fetch(`${API_BASE}/api/report`, {
+  const res = await fetch(`${getApiBase()}/api/report`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
