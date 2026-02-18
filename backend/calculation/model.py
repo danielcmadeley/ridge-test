@@ -211,10 +211,21 @@ class Model:
 
         # Reactions at supported nodes
         ops.reactions()
+        support_hinge_tags = self._support_hinge_reaction_tags()
         for sup in self._supports:
             nd = sup.node
-            rxn = ops.nodeReaction(nd.tag)
-            results.reactions[nd.name] = (rxn[0], rxn[1], rxn[2])
+            rx, ry, rz = ops.nodeReaction(nd.tag)
+
+            # When frame end releases are used, OpenSees reports translational
+            # reactions on internal hinge duplicate nodes. Aggregate those back
+            # to the physical supported node for API/UI consistency.
+            for hinge_tag in support_hinge_tags.get(nd.tag, []):
+                hrx, hry, hrz = ops.nodeReaction(hinge_tag)
+                rx += hrx
+                ry += hry
+                rz += hrz
+
+            results.reactions[nd.name] = (rx, ry, rz)
 
         # Element end-forces [N_i, V_i, M_i, N_j, V_j, M_j].
         # For frame elements, request local forces directly from OpenSees.
@@ -250,6 +261,52 @@ class Model:
                 results.element_forces[name] = tuple(forces)
 
         return results
+
+    def _support_hinge_reaction_tags(self) -> dict[int, list[int]]:
+        """Map supported node tags to released-end hinge node tags.
+
+        Released frame ends are modeled by duplicate hinge nodes tied in x/y.
+        Reactions may be reported on those hinge nodes rather than the original
+        support node, so we gather them for reaction aggregation.
+        """
+        by_support_tag: dict[int, list[int]] = {}
+
+        for elem in self.elements.values():
+            if not isinstance(elem, FrameElement):
+                continue
+            if not elem._hinge_node_tags:
+                continue
+
+            if elem.release == ReleaseType.START:
+                by_support_tag.setdefault(elem.node_i.tag, []).append(
+                    elem._hinge_node_tags[0]
+                )
+            elif elem.release == ReleaseType.END:
+                by_support_tag.setdefault(elem.node_j.tag, []).append(
+                    elem._hinge_node_tags[0]
+                )
+            elif elem.release == ReleaseType.BOTH:
+                if len(elem._hinge_node_tags) >= 1:
+                    by_support_tag.setdefault(elem.node_i.tag, []).append(
+                        elem._hinge_node_tags[0]
+                    )
+                if len(elem._hinge_node_tags) >= 2:
+                    by_support_tag.setdefault(elem.node_j.tag, []).append(
+                        elem._hinge_node_tags[1]
+                    )
+
+        # De-duplicate while preserving order
+        for tag, hinge_tags in by_support_tag.items():
+            seen: set[int] = set()
+            unique: list[int] = []
+            for ht in hinge_tags:
+                if ht in seen:
+                    continue
+                seen.add(ht)
+                unique.append(ht)
+            by_support_tag[tag] = unique
+
+        return by_support_tag
 
     # ── Plotting ─────────────────────────────────────────────────────
 

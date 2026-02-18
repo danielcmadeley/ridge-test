@@ -239,7 +239,14 @@ export function StructureCanvas({
 
   const state = useStructure()
   const dispatch = useStructureDispatch()
-  const { results } = useAnalysisResults()
+  const { results, analysisInput } = useAnalysisResults()
+
+  const currentInputKey = useMemo(() => JSON.stringify(toStructureInput(state)), [state])
+  const analyzedInputKey = useMemo(
+    () => (analysisInput ? JSON.stringify(analysisInput) : null),
+    [analysisInput],
+  )
+  const analysisIsCurrent = !!results && !!analysisInput && analyzedInputKey === currentInputKey
 
   useEffect(() => {
     if (module === 'truss' && (state.selectedTool === 'beam' || state.selectedTool === 'column')) {
@@ -301,7 +308,7 @@ export function StructureCanvas({
       setDiagramMode('axial')
     }
   }, [diagramMode, module])
-  const structureForDiagrams = useMemo(() => toStructureInput(state), [state])
+  const structureForDiagrams = analysisInput
 
   useEffect(() => {
     setLoadCaseVisibility((prev) => {
@@ -324,7 +331,7 @@ export function StructureCanvas({
   }, [showLoads, state.pointLoads, loadCaseVisibility])
 
   const visibleSupportReactions = useMemo(() => {
-    if (!showSupportReactions || !results) return []
+    if (!showSupportReactions || !results || !analysisIsCurrent) return []
 
     const byNodeName = new Map(results.reactions.map((r) => [r.node, r]))
     return state.supports
@@ -341,7 +348,7 @@ export function StructureCanvas({
         }
       })
       .filter((item): item is { id: string; nodeId: string; fx: number; fy: number } => item !== null)
-  }, [showSupportReactions, results, state.supports, state.nodes])
+  }, [showSupportReactions, results, analysisIsCurrent, state.supports, state.nodes])
 
   const trussStability = useMemo(() => {
     if (module !== 'truss') {
@@ -1098,6 +1105,8 @@ export function StructureCanvas({
   useEffect(() => {
     const shouldFetch =
       !!results &&
+      analysisIsCurrent &&
+      !!structureForDiagrams &&
       elementNames.length > 0 &&
       (diagramMode !== 'none' || module === 'truss' || deflectionSlider > 0)
 
@@ -1109,6 +1118,13 @@ export function StructureCanvas({
     }
 
     let mounted = true
+    const diagramStructure = structureForDiagrams
+    if (!diagramStructure) {
+      setDiagramData({})
+      setDiagramError(null)
+      setDiagramLoading(false)
+      return
+    }
 
     setDiagramLoading(true)
     setDiagramError(null)
@@ -1116,7 +1132,7 @@ export function StructureCanvas({
     Promise.all(
       elementNames.map((name) =>
         fetchDiagrams({
-          structure: structureForDiagrams,
+          structure: diagramStructure,
           element_name: name,
         }),
       ),
@@ -1142,7 +1158,15 @@ export function StructureCanvas({
     return () => {
       mounted = false
     }
-  }, [results, diagramMode, elementNames, module, structureForDiagrams, deflectionSlider])
+  }, [
+    results,
+    analysisIsCurrent,
+    diagramMode,
+    elementNames,
+    module,
+    structureForDiagrams,
+    deflectionSlider,
+  ])
 
   const activeDiagramKey =
     diagramMode === 'deflection'

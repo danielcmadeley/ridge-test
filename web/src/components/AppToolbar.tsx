@@ -30,7 +30,7 @@ import {
   normalizeStructureState,
 } from '@/lib/structure-store'
 import { analyzeStructure } from '@/lib/api'
-import type { AnalysisOutput } from '@/lib/types'
+import type { AnalysisOutput, StructureInput } from '@/lib/types'
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { ThemeModeToggle } from '@/components/ThemeModeToggle'
 import {
@@ -52,7 +52,14 @@ interface UnifiedHeaderProps {
 export const AnalysisResultsContext = createContext<{
   results: AnalysisOutput | null
   setResults: (r: AnalysisOutput | null) => void
-}>({ results: null, setResults: () => {} })
+  analysisInput: StructureInput | null
+  setAnalysisInput: (input: StructureInput | null) => void
+}>({
+  results: null,
+  setResults: () => {},
+  analysisInput: null,
+  setAnalysisInput: () => {},
+})
 
 export function useAnalysisResults() {
   return useContext(AnalysisResultsContext)
@@ -64,8 +71,11 @@ export function AnalysisResultsProvider({
   children: React.ReactNode
 }) {
   const [results, setResults] = useState<AnalysisOutput | null>(null)
+  const [analysisInput, setAnalysisInput] = useState<StructureInput | null>(null)
   return (
-    <AnalysisResultsContext.Provider value={{ results, setResults }}>
+    <AnalysisResultsContext.Provider
+      value={{ results, setResults, analysisInput, setAnalysisInput }}
+    >
       {children}
     </AnalysisResultsContext.Provider>
   )
@@ -84,15 +94,32 @@ interface ModuleToolbarProps {
 export function ModuleToolbar({ module = 'frame' }: ModuleToolbarProps) {
   const state = useStructure()
   const dispatch = useStructureDispatch()
-  const { setResults } = useAnalysisResults()
+  const { setResults, setAnalysisInput, analysisInput } = useAnalysisResults()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [persistError, setPersistError] = useState<string | null>(null)
   const [autosaveReady, setAutosaveReady] = useState(false)
 
   const mutation = useMutation({
     mutationFn: analyzeStructure,
-    onSuccess: (data) => setResults(data),
+    onSuccess: (data, variables) => {
+      setResults(data)
+      setAnalysisInput(variables)
+    },
+    onError: () => {
+      setResults(null)
+      setAnalysisInput(null)
+    },
   })
+
+  const currentInput = toStructureInput(state)
+  const currentInputKey = JSON.stringify(currentInput)
+  const analyzedInputKey = analysisInput ? JSON.stringify(analysisInput) : null
+
+  useEffect(() => {
+    if (!analysisInput || analyzedInputKey === currentInputKey) return
+    setResults(null)
+    setAnalysisInput(null)
+  }, [analysisInput, analyzedInputKey, currentInputKey, setAnalysisInput, setResults])
 
   const canAnalyze =
     state.nodes.length >= 2 &&
@@ -105,9 +132,10 @@ export function ModuleToolbar({ module = 'frame' }: ModuleToolbarProps) {
     if (restored) {
       dispatch({ type: 'REPLACE_STATE', state: normalizeStructureState(restored) })
       setResults(null)
+      setAnalysisInput(null)
     }
     setAutosaveReady(true)
-  }, [dispatch, module, setResults])
+  }, [dispatch, module, setAnalysisInput, setResults])
 
   useEffect(() => {
     if (!autosaveReady) return
@@ -148,6 +176,7 @@ export function ModuleToolbar({ module = 'frame' }: ModuleToolbarProps) {
       const restored = await readStructureFile(file, module)
       dispatch({ type: 'REPLACE_STATE', state: restored })
       setResults(null)
+      setAnalysisInput(null)
       saveToAutosave(module, restored)
       setPersistError(null)
     } catch (err) {
@@ -194,7 +223,7 @@ export function ModuleToolbar({ module = 'frame' }: ModuleToolbarProps) {
             size="sm"
             variant="default"
             disabled={!canAnalyze || mutation.isPending}
-            onClick={() => mutation.mutate(toStructureInput(state))}
+            onClick={() => mutation.mutate(currentInput)}
           >
             <Play className="w-4 h-4 mr-1" />
             {mutation.isPending ? 'Analysing...' : 'Run Analysis'}
@@ -216,6 +245,7 @@ export function ModuleToolbar({ module = 'frame' }: ModuleToolbarProps) {
             onClick={() => {
               dispatch({ type: 'CLEAR_ALL' })
               setResults(null)
+              setAnalysisInput(null)
               clearAutosave(module)
             }}
           >
