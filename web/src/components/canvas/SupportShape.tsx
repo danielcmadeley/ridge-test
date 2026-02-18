@@ -34,6 +34,7 @@ export function SupportShape({ x, y, type, onSelect }: SupportShapeProps) {
         onClick={onSelect}
         onTap={onSelect}
       >
+        <Circle radius={22} fill="#000000" opacity={0.001} />
         <Line
           points={[-18, size, 18, size]}
           stroke={supportColor}
@@ -54,6 +55,7 @@ export function SupportShape({ x, y, type, onSelect }: SupportShapeProps) {
         onClick={onSelect}
         onTap={onSelect}
       >
+        <Circle radius={22} fill="#000000" opacity={0.001} />
         <RegularPolygon
           sides={3}
           radius={size}
@@ -80,6 +82,7 @@ export function SupportShape({ x, y, type, onSelect }: SupportShapeProps) {
       onClick={onSelect}
       onTap={onSelect}
     >
+      <Circle radius={22} fill="#000000" opacity={0.001} />
       <RegularPolygon
         sides={3}
         radius={size}

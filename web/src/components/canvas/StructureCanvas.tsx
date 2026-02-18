@@ -174,6 +174,9 @@ export function StructureCanvas({
   const isBoxSelecting = useRef(false)
   const didBoxSelect = useRef(false)
   const lastPanPos = useRef<{ x: number; y: number } | null>(null)
+  const touchPanMode = useRef<'one' | 'two' | null>(null)
+  const pinchStartDistance = useRef<number | null>(null)
+  const pinchStartGridSize = useRef(DEFAULT_GRID_SIZE)
   const [dims, setDims] = useState({ width: 800, height: 600 })
   const [gridSize, setGridSize] = useState(DEFAULT_GRID_SIZE)
   const [diagramMode, setDiagramMode] = useState<
@@ -801,6 +804,133 @@ export function StructureCanvas({
     stage.container().style.cursor = state.selectedTool === 'drag' ? 'grab' : 'default'
   }
 
+  const getTouchPoint = (touch: Touch, stage: ReturnType<KonvaEventObject<TouchEvent>['currentTarget']['getStage']>) => {
+    const rect = stage.container().getBoundingClientRect()
+    return { x: touch.clientX - rect.left, y: touch.clientY - rect.top }
+  }
+
+  const getTouchCenterAndDistance = (
+    t1: Touch,
+    t2: Touch,
+    stage: ReturnType<KonvaEventObject<TouchEvent>['currentTarget']['getStage']>,
+  ) => {
+    const p1 = getTouchPoint(t1, stage)
+    const p2 = getTouchPoint(t2, stage)
+    const center = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 }
+    const distance = Math.hypot(p2.x - p1.x, p2.y - p1.y)
+    return { center, distance }
+  }
+
+  const handleStageTouchStart = (e: KonvaEventObject<TouchEvent>) => {
+    const stage = e.currentTarget.getStage()
+    if (!stage) return
+    const touches = e.evt.touches
+
+    if (touches.length >= 2) {
+      e.evt.preventDefault()
+      const { center, distance } = getTouchCenterAndDistance(touches[0], touches[1], stage)
+      touchPanMode.current = 'two'
+      isPanning.current = true
+      didPan.current = false
+      lastPanPos.current = center
+      pinchStartDistance.current = Math.max(distance, 1)
+      pinchStartGridSize.current = gridSize
+      return
+    }
+
+    if (touches.length === 1 && state.selectedTool === 'drag') {
+      e.evt.preventDefault()
+      const p = getTouchPoint(touches[0], stage)
+      touchPanMode.current = 'one'
+      isPanning.current = true
+      didPan.current = false
+      lastPanPos.current = p
+      pinchStartDistance.current = null
+    }
+  }
+
+  const handleStageTouchMove = (e: KonvaEventObject<TouchEvent>) => {
+    const stage = e.currentTarget.getStage()
+    if (!stage) return
+    const touches = e.evt.touches
+
+    if (touches.length >= 2) {
+      e.evt.preventDefault()
+      const { center, distance } = getTouchCenterAndDistance(touches[0], touches[1], stage)
+
+      if (touchPanMode.current !== 'two') {
+        touchPanMode.current = 'two'
+        isPanning.current = true
+        didPan.current = false
+        lastPanPos.current = center
+        pinchStartDistance.current = Math.max(distance, 1)
+        pinchStartGridSize.current = gridSize
+        return
+      }
+
+      if (lastPanPos.current) {
+        const dx = center.x - lastPanPos.current.x
+        const dy = center.y - lastPanPos.current.y
+        if (Math.abs(dx) > 0 || Math.abs(dy) > 0) {
+          didPan.current = true
+          setOffset((prev) => ({ x: prev.x + dx, y: prev.y + dy }))
+        }
+      }
+      lastPanPos.current = center
+
+      const baseDistance = pinchStartDistance.current ?? Math.max(distance, 1)
+      const ratio = Math.max(0.1, distance / Math.max(baseDistance, 1))
+      const nextGrid = pinchStartGridSize.current * ratio
+      setZoomAt(nextGrid, center.x, center.y)
+      return
+    }
+
+    if (touches.length === 1 && touchPanMode.current === 'one' && state.selectedTool === 'drag') {
+      e.evt.preventDefault()
+      const p = getTouchPoint(touches[0], stage)
+      if (lastPanPos.current) {
+        const dx = p.x - lastPanPos.current.x
+        const dy = p.y - lastPanPos.current.y
+        if (Math.abs(dx) > 0 || Math.abs(dy) > 0) {
+          didPan.current = true
+          setOffset((prev) => ({ x: prev.x + dx, y: prev.y + dy }))
+        }
+      }
+      lastPanPos.current = p
+    }
+  }
+
+  const handleStageTouchEnd = (e: KonvaEventObject<TouchEvent>) => {
+    const stage = e.currentTarget.getStage()
+    if (!stage) return
+    const touches = e.evt.touches
+
+    if (touches.length >= 2) {
+      const { center, distance } = getTouchCenterAndDistance(touches[0], touches[1], stage)
+      touchPanMode.current = 'two'
+      isPanning.current = true
+      lastPanPos.current = center
+      pinchStartDistance.current = Math.max(distance, 1)
+      pinchStartGridSize.current = gridSize
+      return
+    }
+
+    if (touches.length === 1 && state.selectedTool === 'drag') {
+      const p = getTouchPoint(touches[0], stage)
+      touchPanMode.current = 'one'
+      isPanning.current = true
+      lastPanPos.current = p
+      pinchStartDistance.current = null
+      return
+    }
+
+    touchPanMode.current = null
+    isPanning.current = false
+    lastPanPos.current = null
+    pinchStartDistance.current = null
+    stage.container().style.cursor = state.selectedTool === 'drag' ? 'grab' : 'default'
+  }
+
   const handleNodeClick = (nodeId: string) => {
     const tool = state.selectedTool
 
@@ -1418,11 +1548,15 @@ export function StructureCanvas({
       <Stage
         width={dims.width}
         height={dims.height}
+        style={{ touchAction: 'none' }}
         onClick={handleStageClick}
         onMouseDown={handleStageMouseDown}
         onMouseMove={handleStageMouseMove}
         onMouseUp={handleStageMouseUp}
         onMouseLeave={handleStageMouseLeave}
+        onTouchStart={handleStageTouchStart}
+        onTouchMove={handleStageTouchMove}
+        onTouchEnd={handleStageTouchEnd}
         onWheel={handleWheel}
       >
         <Layer>

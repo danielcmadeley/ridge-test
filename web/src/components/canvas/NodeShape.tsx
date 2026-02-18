@@ -50,6 +50,11 @@ export function NodeShape({
       onTap={onSelect}
     >
       <Circle
+        radius={18}
+        fill="#000000"
+        opacity={0.001}
+      />
+      <Circle
         radius={selected ? 7 : 5}
         fill={selected ? '#15803d' : '#262626'}
         stroke={selected ? '#f5f5f5' : '#e5e5e5'}

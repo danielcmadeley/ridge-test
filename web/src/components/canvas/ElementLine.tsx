@@ -108,13 +108,13 @@ export function ElementLine({
             points={split.first}
             stroke={releaseStartColor}
             strokeWidth={strokeWidth}
-            hitStrokeWidth={12}
+            hitStrokeWidth={20}
           />
           <Line
             points={split.second}
             stroke={releaseEndColor}
             strokeWidth={strokeWidth}
-            hitStrokeWidth={12}
+            hitStrokeWidth={20}
           />
         </>
       ) : (
@@ -122,7 +122,7 @@ export function ElementLine({
           points={linePoints}
           stroke={selected ? '#15803d' : color}
           strokeWidth={strokeWidth}
-          hitStrokeWidth={12}
+          hitStrokeWidth={20}
         />
       )}
       {showName && (
