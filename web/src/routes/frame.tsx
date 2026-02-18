@@ -15,19 +15,16 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import {
-  AnalysisResultsProvider,
-  ModuleToolbar,
-} from '@/components/AppToolbar'
-import { StructureCanvas } from '@/components/canvas/StructureCanvas'
+import { AppToolbar, AnalysisResultsProvider } from '@/components/AppToolbar'
 import { PropertiesPanel } from '@/components/properties/PropertiesPanel'
+import { StructureCanvas } from '@/components/canvas/StructureCanvas'
 import { ResultsPanel } from '@/components/results/ResultsPanel'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { StructureProvider } from '@/lib/structure-store'
 
-export const Route = createFileRoute('/truss')({ component: TrussApp })
+export const Route = createFileRoute('/frame')({ component: FrameApp })
 
-function TrussApp() {
+function FrameApp() {
   const isMobile = useIsMobile()
   const [propertiesDialogOpen, setPropertiesDialogOpen] = useState(false)
   const [resultsDialogOpen, setResultsDialogOpen] = useState(false)
@@ -53,15 +50,12 @@ function TrussApp() {
     <StructureProvider>
       <AnalysisResultsProvider>
         <div className="h-[100dvh] flex flex-col bg-background text-foreground">
-          <ModuleToolbar module="truss" />
+          <AppToolbar />
 
           {isMobile ? (
             <>
               <div className="relative flex-1 min-h-0">
-                <StructureCanvas
-                  module="truss"
-                  mobileControlsOpen={mobileCanvasControlsOpen}
-                />
+                <StructureCanvas mobileControlsOpen={mobileCanvasControlsOpen} />
               </div>
 
               <div className="sticky bottom-0 z-20 border-t border-border bg-card/95 px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur">
@@ -113,19 +107,19 @@ function TrussApp() {
                 >
                   <SheetHeader className="border-b border-border pb-3">
                     <SheetTitle>
-                      {mobilePanel === 'properties' ? 'Truss Properties' : 'Truss Results'}
+                      {mobilePanel === 'properties' ? 'Properties' : 'Results'}
                     </SheetTitle>
                     <SheetDescription>
                       {mobilePanel === 'properties'
-                        ? 'Edit nodes, truss members, supports, and loads.'
-                        : 'Review reactions plus axial and deflection behavior.'}
+                        ? 'Edit selected nodes, members, supports, and load cases.'
+                        : 'Review reactions, combinations, and design checks.'}
                     </SheetDescription>
                   </SheetHeader>
                   <div className="min-h-0 flex-1">
                     {mobilePanel === 'properties' ? (
-                      <PropertiesPanel module="truss" />
+                      <PropertiesPanel />
                     ) : (
-                      <ResultsPanel module="truss" />
+                      <ResultsPanel />
                     )}
                   </div>
                 </SheetContent>
@@ -134,7 +128,7 @@ function TrussApp() {
           ) : (
             <>
               <div className="relative flex-1 min-h-0">
-                <StructureCanvas module="truss" />
+                <StructureCanvas />
                 <div className="absolute right-4 bottom-4 z-20 flex flex-col gap-2">
                   <Button
                     variant={propertiesDialogOpen ? 'default' : 'secondary'}
@@ -143,7 +137,7 @@ function TrussApp() {
                       setPropertiesDialogOpen(true)
                     }}
                   >
-                    Truss Properties
+                    Properties
                   </Button>
                   <Button
                     variant={resultsDialogOpen ? 'default' : 'secondary'}
@@ -152,7 +146,7 @@ function TrussApp() {
                       setResultsDialogOpen(true)
                     }}
                   >
-                    Truss Results
+                    Results
                   </Button>
                 </div>
               </div>
@@ -161,29 +155,29 @@ function TrussApp() {
                 open={propertiesDialogOpen}
                 onOpenChange={setPropertiesDialogOpen}
               >
-                <DialogContent className="!w-[96vw] !max-w-[1300px] h-[90vh] max-h-[1000px] min-h-[700px] p-0 gap-0 overflow-hidden">
+                <DialogContent className="!w-[96vw] !max-w-[1500px] h-[92vh] max-h-[1100px] min-h-[760px] p-0 gap-0 overflow-hidden">
                   <DialogHeader className="px-5 py-4 border-b border-border">
-                    <DialogTitle className="text-lg">Truss Properties</DialogTitle>
+                    <DialogTitle className="text-lg">Properties</DialogTitle>
                     <DialogDescription>
-                      Edit pin-jointed truss geometry, sections, supports, and loads.
+                      Edit selected nodes, members, supports, and load cases.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="min-h-0 flex-1">
-                    <PropertiesPanel module="truss" />
+                    <PropertiesPanel />
                   </div>
                 </DialogContent>
               </Dialog>
 
               <Dialog open={resultsDialogOpen} onOpenChange={setResultsDialogOpen}>
-                <DialogContent className="!w-[96vw] !max-w-[1300px] h-[90vh] max-h-[1000px] min-h-[700px] p-0 gap-0 overflow-hidden">
+                <DialogContent className="!w-[96vw] !max-w-[1500px] h-[92vh] max-h-[1100px] min-h-[760px] p-0 gap-0 overflow-hidden">
                   <DialogHeader className="px-5 py-4 border-b border-border">
-                    <DialogTitle className="text-lg">Truss Results</DialogTitle>
+                    <DialogTitle className="text-lg">Results</DialogTitle>
                     <DialogDescription>
-                      Review support reactions and member axial/deflection diagrams.
+                      Review reactions, combinations, and design checks.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="min-h-0 flex-1">
-                    <ResultsPanel module="truss" />
+                    <ResultsPanel />
                   </div>
                 </DialogContent>
               </Dialog>

@@ -3,6 +3,7 @@ import { useNavigate, useRouterState } from '@tanstack/react-router'
 import {
   Box,
   Calculator,
+  Clock3,
   Download,
   FolderOpen,
   GitFork,
@@ -158,25 +159,8 @@ export function ModuleToolbar({ module = 'frame' }: ModuleToolbarProps) {
 
   return (
     <UnifiedHeader
-      title={module === 'truss' ? '2D Truss Analysis' : '2D Analysis'}
+      title={module === 'truss' ? '2D Truss Analysis' : '2D Frame Analysis'}
       badges={module === 'truss' ? ['Axial + Deflection'] : []}
-      moduleControls={
-        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-          <span>Grade:</span>
-          <select
-            value={state.steelGrade}
-            onChange={(e) =>
-              dispatch({ type: 'SET_STEEL_GRADE', grade: e.target.value })
-            }
-            className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs border border-border"
-          >
-            <option value="S235">S235</option>
-            <option value="S275">S275</option>
-            <option value="S355">S355</option>
-            <option value="S460">S460</option>
-          </select>
-        </div>
-      }
       rightControls={
         <>
           <Button size="sm" variant="secondary" onClick={saveNow}>
@@ -270,6 +254,93 @@ export function UnifiedHeader({
     navigate({ to })
   }
 
+  const toolTiles = [
+    {
+      id: 'frame',
+      title: '2D Frame Analysis',
+      description: 'Build frame models, apply loads and run EC3 checks.',
+      to: '/frame',
+      icon: Wrench,
+      shortcut: 'F',
+      enabled: true,
+    },
+    {
+      id: 'truss',
+      title: 'Truss Analysis',
+      description: 'Build pin-jointed trusses and review axial and deflection behavior.',
+      to: '/truss',
+      icon: GitFork,
+      shortcut: 'T',
+      enabled: true,
+    },
+    {
+      id: 'section-properties',
+      title: 'Section Properties',
+      description: 'Compose section geometry and compute area/inertia.',
+      to: '/section-properties-calculator',
+      icon: Calculator,
+      shortcut: 'S',
+      enabled: true,
+    },
+    {
+      id: 'load-takedown-3d',
+      title: '3D Load Takedown',
+      description: 'Build storey slabs/columns and run load-down reactions.',
+      to: '/3d-load-takedown',
+      icon: Box,
+      shortcut: '3',
+      enabled: true,
+    },
+    {
+      id: 'coming-soon-1',
+      title: 'Coming Soon',
+      description: 'A new structural tool is in development.',
+      to: '#',
+      icon: Clock3,
+      shortcut: '',
+      enabled: false,
+    },
+    {
+      id: 'coming-soon-2',
+      title: 'Coming Soon',
+      description: 'A new structural tool is in development.',
+      to: '#',
+      icon: Clock3,
+      shortcut: '',
+      enabled: false,
+    },
+    {
+      id: 'coming-soon-3',
+      title: 'Coming Soon',
+      description: 'A new structural tool is in development.',
+      to: '#',
+      icon: Clock3,
+      shortcut: '',
+      enabled: false,
+    },
+    {
+      id: 'coming-soon-4',
+      title: 'Coming Soon',
+      description: 'A new structural tool is in development.',
+      to: '#',
+      icon: Clock3,
+      shortcut: '',
+      enabled: false,
+    },
+    {
+      id: 'coming-soon-5',
+      title: 'Coming Soon',
+      description: 'A new structural tool is in development.',
+      to: '#',
+      icon: Clock3,
+      shortcut: '',
+      enabled: false,
+    },
+  ] as const
+
+  const availableTools = toolTiles.filter((tool) => tool.enabled)
+  const upcomingTools = toolTiles.filter((tool) => !tool.enabled)
+
   return (
     <div className="flex flex-wrap items-center gap-2 border-b border-border bg-card px-3 py-2 sm:gap-3 sm:px-4">
       <Button
@@ -318,79 +389,55 @@ export function UnifiedHeader({
         onOpenChange={setMenuOpen}
         title="Tools"
         description="Search and open tools"
+        className="w-[96vw] max-w-[960px]"
       >
-        <CommandInput placeholder="Search tools..." />
-        <CommandList>
+        <div className="px-4 pt-4">
+          <span className="inline-flex rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
+            Tools
+          </span>
+        </div>
+        <CommandInput placeholder="Type a command or search..." className="h-14 text-lg" />
+        <CommandList className="max-h-[560px]">
           <CommandEmpty>No tools found.</CommandEmpty>
-          <CommandGroup heading="Tools" className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <CommandItem
-              onSelect={() => openTool('/')}
-              className="h-24 items-start rounded-md border border-border/70 bg-card/60 p-3"
-            >
-              <div className="flex w-full items-start gap-2">
-                <Wrench className="w-4 h-4 mt-0.5" />
-                <div className="min-w-0">
-                  <div className="font-medium leading-none">2D Analysis</div>
-                  <div className="mt-1 text-xs text-muted-foreground leading-snug">
-                    Build frame models, apply loads and run EC3 checks.
+          <CommandGroup heading="Available" className="p-3">
+            {availableTools.map(({ id, title, description, to, icon: Icon, shortcut }) => (
+              <CommandItem
+                key={id}
+                value={`${title} ${description}`}
+                onSelect={() => openTool(to)}
+                className="mb-2 h-14 rounded-md border border-border/70 bg-card/50 px-3"
+              >
+                <div className="flex w-full items-center gap-3">
+                  <Icon className="h-4 w-4 text-muted-foreground" />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium leading-none">{title}</div>
                   </div>
+                  <CommandShortcut className="ml-0 rounded bg-muted px-2 py-0.5 text-[11px] tracking-normal">
+                    {location === to ? 'Current' : shortcut}
+                  </CommandShortcut>
                 </div>
-                <CommandShortcut className="ml-0 text-[10px] tracking-normal">
-                  {location === '/' ? 'Current' : 'Open'}
-                </CommandShortcut>
-              </div>
-            </CommandItem>
-            <CommandItem
-              onSelect={() => openTool('/truss')}
-              className="h-24 items-start rounded-md border border-border/70 bg-card/60 p-3"
-            >
-              <div className="flex w-full items-start gap-2">
-                <GitFork className="w-4 h-4 mt-0.5" />
-                <div className="min-w-0">
-                  <div className="font-medium leading-none">Truss Analysis</div>
-                  <div className="mt-1 text-xs text-muted-foreground leading-snug">
-                    Build pin-jointed trusses and review axial and deflection behavior.
+              </CommandItem>
+            ))}
+          </CommandGroup>
+          <CommandGroup heading="Coming Soon" className="p-3 pt-1">
+            {upcomingTools.map(({ id, title, icon: Icon }) => (
+              <CommandItem
+                key={id}
+                value={title}
+                disabled
+                className="mb-2 h-14 rounded-md border border-border/60 bg-muted/40 px-3 text-muted-foreground data-[disabled=true]:opacity-100"
+              >
+                <div className="flex w-full items-center gap-3">
+                  <Icon className="h-4 w-4 text-muted-foreground" />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium leading-none">{title}</div>
                   </div>
+                  <CommandShortcut className="ml-0 rounded bg-muted px-2 py-0.5 text-[11px] tracking-normal">
+                    Soon
+                  </CommandShortcut>
                 </div>
-                <CommandShortcut className="ml-0 text-[10px] tracking-normal">
-                  {location === '/truss' ? 'Current' : 'Open'}
-                </CommandShortcut>
-              </div>
-            </CommandItem>
-            <CommandItem
-              onSelect={() => openTool('/section-properties-calculator')}
-              className="h-24 items-start rounded-md border border-border/70 bg-card/60 p-3"
-            >
-              <div className="flex w-full items-start gap-2">
-                <Calculator className="w-4 h-4 mt-0.5" />
-                <div className="min-w-0">
-                  <div className="font-medium leading-none">Section Properties</div>
-                  <div className="mt-1 text-xs text-muted-foreground leading-snug">
-                    Compose section geometry and compute area/inertia.
-                  </div>
-                </div>
-                <CommandShortcut className="ml-0 text-[10px] tracking-normal">
-                  {location === '/section-properties-calculator' ? 'Current' : 'Open'}
-                </CommandShortcut>
-              </div>
-            </CommandItem>
-            <CommandItem
-              onSelect={() => openTool('/3d-load-takedown')}
-              className="h-24 items-start rounded-md border border-border/70 bg-card/60 p-3 sm:col-span-2"
-            >
-              <div className="flex w-full items-start gap-2">
-                <Box className="w-4 h-4 mt-0.5" />
-                <div className="min-w-0">
-                  <div className="font-medium leading-none">3D Load Takedown</div>
-                  <div className="mt-1 text-xs text-muted-foreground leading-snug">
-                    Build storey slabs/columns and run load-down reactions.
-                  </div>
-                </div>
-                <CommandShortcut className="ml-0 text-[10px] tracking-normal">
-                  {location === '/3d-load-takedown' ? 'Current' : 'Open'}
-                </CommandShortcut>
-              </div>
-            </CommandItem>
+              </CommandItem>
+            ))}
           </CommandGroup>
         </CommandList>
       </CommandDialog>

@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TrussRouteImport } from './routes/truss'
 import { Route as SectionPropertiesCalculatorRouteImport } from './routes/section-properties-calculator'
+import { Route as FrameRouteImport } from './routes/frame'
 import { Route as R3dLoadTakedownRouteImport } from './routes/3d-load-takedown'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -25,6 +26,11 @@ const SectionPropertiesCalculatorRoute =
     path: '/section-properties-calculator',
     getParentRoute: () => rootRouteImport,
   } as any)
+const FrameRoute = FrameRouteImport.update({
+  id: '/frame',
+  path: '/frame',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const R3dLoadTakedownRoute = R3dLoadTakedownRouteImport.update({
   id: '/3d-load-takedown',
   path: '/3d-load-takedown',
@@ -39,12 +45,14 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/3d-load-takedown': typeof R3dLoadTakedownRoute
+  '/frame': typeof FrameRoute
   '/section-properties-calculator': typeof SectionPropertiesCalculatorRoute
   '/truss': typeof TrussRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/3d-load-takedown': typeof R3dLoadTakedownRoute
+  '/frame': typeof FrameRoute
   '/section-properties-calculator': typeof SectionPropertiesCalculatorRoute
   '/truss': typeof TrussRoute
 }
@@ -52,6 +60,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/3d-load-takedown': typeof R3dLoadTakedownRoute
+  '/frame': typeof FrameRoute
   '/section-properties-calculator': typeof SectionPropertiesCalculatorRoute
   '/truss': typeof TrussRoute
 }
@@ -60,14 +69,21 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/3d-load-takedown'
+    | '/frame'
     | '/section-properties-calculator'
     | '/truss'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/3d-load-takedown' | '/section-properties-calculator' | '/truss'
+  to:
+    | '/'
+    | '/3d-load-takedown'
+    | '/frame'
+    | '/section-properties-calculator'
+    | '/truss'
   id:
     | '__root__'
     | '/'
     | '/3d-load-takedown'
+    | '/frame'
     | '/section-properties-calculator'
     | '/truss'
   fileRoutesById: FileRoutesById
@@ -75,6 +91,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   R3dLoadTakedownRoute: typeof R3dLoadTakedownRoute
+  FrameRoute: typeof FrameRoute
   SectionPropertiesCalculatorRoute: typeof SectionPropertiesCalculatorRoute
   TrussRoute: typeof TrussRoute
 }
@@ -93,6 +110,13 @@ declare module '@tanstack/react-router' {
       path: '/section-properties-calculator'
       fullPath: '/section-properties-calculator'
       preLoaderRoute: typeof SectionPropertiesCalculatorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/frame': {
+      id: '/frame'
+      path: '/frame'
+      fullPath: '/frame'
+      preLoaderRoute: typeof FrameRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/3d-load-takedown': {
@@ -115,6 +139,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   R3dLoadTakedownRoute: R3dLoadTakedownRoute,
+  FrameRoute: FrameRoute,
   SectionPropertiesCalculatorRoute: SectionPropertiesCalculatorRoute,
   TrussRoute: TrussRoute,
 }

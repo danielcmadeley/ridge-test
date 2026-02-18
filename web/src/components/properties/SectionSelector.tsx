@@ -17,7 +17,7 @@ import type { SectionInfo } from '@/lib/types'
 interface SectionSelectorProps {
   value: string
   onChange: (designation: string) => void
-  role: 'beam' | 'column' | 'truss_member'
+  elementRole: 'beam' | 'column' | 'truss_member'
 }
 
 type SectionSeries = 'UB' | 'UC' | 'SHS' | 'RHS'
@@ -35,9 +35,9 @@ function normalizeSeries(series: string): SectionSeries | null {
   return null
 }
 
-function defaultSeriesForRole(role: SectionSelectorProps['role']): SectionSeries {
-  if (role === 'column') return 'UC'
-  if (role === 'truss_member') return 'SHS'
+function defaultSeriesForRole(elementRole: SectionSelectorProps['elementRole']): SectionSeries {
+  if (elementRole === 'column') return 'UC'
+  if (elementRole === 'truss_member') return 'SHS'
   return 'UB'
 }
 
@@ -125,11 +125,11 @@ function SectionSeriesGlyph({ series }: { series: SectionSeries }) {
   )
 }
 
-export function SectionSelector({ value, onChange, role }: SectionSelectorProps) {
+export function SectionSelector({ value, onChange, elementRole }: SectionSelectorProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [selectedSeries, setSelectedSeries] = useState<SectionSeries>(
-    defaultSeriesForRole(role),
+    defaultSeriesForRole(elementRole),
   )
 
   const { data: sections, isLoading } = useQuery({
@@ -226,7 +226,7 @@ export function SectionSelector({ value, onChange, role }: SectionSelectorProps)
 
   const openSelector = () => {
     const fromCurrent = currentSection ? normalizeSeries(currentSection.series) : null
-    setSelectedSeries(fromCurrent ?? defaultSeriesForRole(role))
+    setSelectedSeries(fromCurrent ?? defaultSeriesForRole(elementRole))
     setSearch('')
     setOpen(true)
   }

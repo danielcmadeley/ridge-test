@@ -189,7 +189,10 @@ class Model:
 
         rc = run_static_analysis()
         if rc != 0:
-            raise RuntimeError(f"Analysis failed with return code {rc}")
+            raise RuntimeError(
+                "Analysis failed (possible unstable frame/mechanism from supports or end releases) "
+                f"with return code {rc}"
+            )
 
         self._results = self._extract_results()
         return self._results

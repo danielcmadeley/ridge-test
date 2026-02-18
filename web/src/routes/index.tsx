@@ -1,187 +1,83 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
+import { createFileRoute, Link } from '@tanstack/react-router'
+import { Box, Calculator, GitFork, Home, Wrench } from 'lucide-react'
+import { UnifiedHeader } from '@/components/AppToolbar'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
-import { StructureProvider } from '@/lib/structure-store'
-import { AppToolbar, AnalysisResultsProvider } from '@/components/AppToolbar'
-import { PropertiesPanel } from '@/components/properties/PropertiesPanel'
-import { StructureCanvas } from '@/components/canvas/StructureCanvas'
-import { ResultsPanel } from '@/components/results/ResultsPanel'
-import { useIsMobile } from '@/hooks/use-mobile'
+import { Card } from '@/components/ui/card'
 
-export const Route = createFileRoute('/')({ component: App })
+export const Route = createFileRoute('/')({ component: WelcomePage })
 
-function App() {
-  const isMobile = useIsMobile()
-  const [propertiesDialogOpen, setPropertiesDialogOpen] = useState(false)
-  const [resultsDialogOpen, setResultsDialogOpen] = useState(false)
-  const [mobilePanel, setMobilePanel] = useState<'canvas' | 'properties' | 'results'>(
-    'canvas',
-  )
-  const [mobileSheetOpen, setMobileSheetOpen] = useState(false)
+const tools = [
+  {
+    title: '2D Frame Analysis',
+    description: 'Build frame models, apply load cases, and run EC3 checks.',
+    to: '/frame',
+    Icon: Wrench,
+  },
+  {
+    title: '2D Truss Analysis',
+    description: 'Create pin-jointed trusses and review axial force behavior.',
+    to: '/truss',
+    Icon: GitFork,
+  },
+  {
+    title: 'Section Properties Calculator',
+    description: 'Compose section geometry and compute area and inertia values.',
+    to: '/section-properties-calculator',
+    Icon: Calculator,
+  },
+  {
+    title: '3D Load Takedown',
+    description: 'Model slab and column load paths and check vertical reactions.',
+    to: '/3d-load-takedown',
+    Icon: Box,
+  },
+] as const
 
-  const openMobilePanel = (panel: 'canvas' | 'properties' | 'results') => {
-    if (panel === 'canvas') {
-      setMobileSheetOpen(false)
-      setMobilePanel('canvas')
-      return
-    }
-    setMobilePanel(panel)
-    setMobileSheetOpen(true)
-  }
-
+function WelcomePage() {
   return (
-    <StructureProvider>
-      <AnalysisResultsProvider>
-        <div className="h-[100dvh] flex flex-col bg-background text-foreground">
-          <AppToolbar />
+    <div className="min-h-[100dvh] flex flex-col bg-background text-foreground">
+      <UnifiedHeader title="Welcome" badges={['Form & Function']} />
 
-          {isMobile ? (
-            <>
-              <div className="relative flex-1 min-h-0 pb-[calc(4.25rem+env(safe-area-inset-bottom))]">
-                <StructureCanvas />
-              </div>
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-10 sm:px-6 lg:px-8">
+        <section className="rounded-2xl border border-border bg-card/40 p-6 sm:p-8">
+          <p className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">
+            <Home className="h-3.5 w-3.5" />
+            Engineering Toolkit
+          </p>
+          <h2 className="mt-4 text-2xl font-semibold tracking-tight sm:text-3xl">
+            Start a structural workflow
+          </h2>
+          <p className="mt-3 max-w-3xl text-sm text-muted-foreground sm:text-base">
+            Choose a module to begin modelling, analysis, and design checks.
+          </p>
+          <div className="mt-6">
+            <Button asChild>
+              <Link to="/frame">Open 2D Frame Analysis</Link>
+            </Button>
+          </div>
+        </section>
 
-              <div className="sticky bottom-0 z-20 border-t border-border bg-card/95 px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur">
-                <div className="grid grid-cols-3 gap-2">
-                  <Button
-                    size="sm"
-                    variant={!mobileSheetOpen ? 'default' : 'secondary'}
-                    onClick={() => openMobilePanel('canvas')}
-                  >
-                    Canvas
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={
-                      mobilePanel === 'properties' && mobileSheetOpen
-                        ? 'default'
-                        : 'secondary'
-                    }
-                    onClick={() => openMobilePanel('properties')}
-                  >
-                    Properties
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={
-                      mobilePanel === 'results' && mobileSheetOpen
-                        ? 'default'
-                        : 'secondary'
-                    }
-                    onClick={() => openMobilePanel('results')}
-                  >
-                    Results
+        <section className="mt-6 grid gap-4 sm:grid-cols-2">
+          {tools.map(({ title, description, to, Icon }) => (
+            <Card key={to} className="border-border/80 bg-card/60 p-5">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 rounded-md border border-border bg-background p-2">
+                  <Icon className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-semibold sm:text-base">{title}</h3>
+                  <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
+                    {description}
+                  </p>
+                  <Button asChild size="sm" variant="secondary" className="mt-4">
+                    <Link to={to}>Open Tool</Link>
                   </Button>
                 </div>
               </div>
-
-              <Sheet
-                open={mobileSheetOpen}
-                onOpenChange={(open) => {
-                  setMobileSheetOpen(open)
-                  if (!open) {
-                    setMobilePanel('canvas')
-                  }
-                }}
-              >
-                <SheetContent
-                  side="bottom"
-                  className="h-[78dvh] gap-0 rounded-t-xl p-0"
-                >
-                  <SheetHeader className="border-b border-border pb-3">
-                    <SheetTitle>
-                      {mobilePanel === 'properties' ? 'Properties' : 'Results'}
-                    </SheetTitle>
-                    <SheetDescription>
-                      {mobilePanel === 'properties'
-                        ? 'Edit selected nodes, members, supports, and load cases.'
-                        : 'Review reactions, combinations, and design checks.'}
-                    </SheetDescription>
-                  </SheetHeader>
-                  <div className="min-h-0 flex-1">
-                    {mobilePanel === 'properties' ? (
-                      <PropertiesPanel />
-                    ) : (
-                      <ResultsPanel />
-                    )}
-                  </div>
-                </SheetContent>
-              </Sheet>
-            </>
-          ) : (
-            <>
-              <div className="relative flex-1 min-h-0">
-                <StructureCanvas />
-                <div className="absolute right-4 bottom-4 z-20 flex flex-col gap-2">
-                  <Button
-                    variant={propertiesDialogOpen ? 'default' : 'secondary'}
-                    onClick={() => {
-                      setResultsDialogOpen(false)
-                      setPropertiesDialogOpen(true)
-                    }}
-                  >
-                    Properties
-                  </Button>
-                  <Button
-                    variant={resultsDialogOpen ? 'default' : 'secondary'}
-                    onClick={() => {
-                      setPropertiesDialogOpen(false)
-                      setResultsDialogOpen(true)
-                    }}
-                  >
-                    Results
-                  </Button>
-                </div>
-              </div>
-
-              <Dialog
-                open={propertiesDialogOpen}
-                onOpenChange={setPropertiesDialogOpen}
-              >
-                <DialogContent className="!w-[96vw] !max-w-[1500px] h-[92vh] max-h-[1100px] min-h-[760px] p-0 gap-0 overflow-hidden">
-                  <DialogHeader className="px-5 py-4 border-b border-border">
-                    <DialogTitle className="text-lg">Properties</DialogTitle>
-                    <DialogDescription>
-                      Edit selected nodes, members, supports, and load cases.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="min-h-0 flex-1">
-                    <PropertiesPanel />
-                  </div>
-                </DialogContent>
-              </Dialog>
-
-              <Dialog open={resultsDialogOpen} onOpenChange={setResultsDialogOpen}>
-                <DialogContent className="!w-[96vw] !max-w-[1500px] h-[92vh] max-h-[1100px] min-h-[760px] p-0 gap-0 overflow-hidden">
-                  <DialogHeader className="px-5 py-4 border-b border-border">
-                    <DialogTitle className="text-lg">Results</DialogTitle>
-                    <DialogDescription>
-                      Review reactions, combinations, and design checks.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="min-h-0 flex-1">
-                    <ResultsPanel />
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </>
-          )}
-        </div>
-      </AnalysisResultsProvider>
-    </StructureProvider>
+            </Card>
+          ))}
+        </section>
+      </main>
+    </div>
   )
 }

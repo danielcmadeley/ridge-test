@@ -296,6 +296,7 @@ export interface CanvasElement {
   nodeI: string // node id
   nodeJ: string // node id
   designation: string
+  youngsModulus?: number // N/mm^2
   releaseStart?: boolean
   releaseEnd?: boolean
 }

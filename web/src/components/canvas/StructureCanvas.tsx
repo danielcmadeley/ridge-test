@@ -17,7 +17,7 @@ import {
   useStructureDispatch,
 } from '@/lib/structure-store'
 import { fetchDiagrams } from '@/lib/api'
-import type { DiagramOutput } from '@/lib/types'
+import type { DiagramOutput, SupportType } from '@/lib/types'
 
 const DEFAULT_GRID_SIZE = 60 // pixels per metre
 const MIN_GRID_SIZE = 0.42
@@ -25,6 +25,9 @@ const MAX_GRID_SIZE = 42000
 const AXIAL_COLOR_THRESHOLD_KN = 0.5
 const DEFLECTION_TARGET_MAX_PX = 120
 const GRID_STEP_OPTIONS_M = [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 10, 50, 100]
+const DEFAULT_BEAM_DESIGNATION = 'UB 457x191x67'
+const DEFAULT_COLUMN_DESIGNATION = 'UC 254x254x89'
+const DEFAULT_YOUNGS_MODULUS_N_PER_MM2 = 210000
 const GRID_STEP_LABELS = new Map<number, string>([
   [0.001, '1 mm'],
   [0.005, '5 mm'],
@@ -37,12 +40,6 @@ const GRID_STEP_LABELS = new Map<number, string>([
   [50, '50 m'],
   [100, '100 m'],
 ])
-const SUPPORT_CYCLE: Array<'pinned' | 'fixed' | 'roller'> = [
-  'pinned',
-  'fixed',
-  'roller',
-]
-
 function axialSignColor(values: number[]) {
   if (values.length === 0) return '#a855f7'
   const avg = values.reduce((sum, v) => sum + v, 0) / values.length
@@ -164,9 +161,13 @@ function lineIntersectsRect(
 
 interface StructureCanvasProps {
   module?: 'frame' | 'truss'
+  mobileControlsOpen?: boolean
 }
 
-export function StructureCanvas({ module = 'frame' }: StructureCanvasProps) {
+export function StructureCanvas({
+  module = 'frame',
+  mobileControlsOpen = false,
+}: StructureCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const isPanning = useRef(false)
   const didPan = useRef(false)
@@ -191,6 +192,10 @@ export function StructureCanvas({ module = 'frame' }: StructureCanvasProps) {
     value: number
   } | null>(null)
   const [showLoads, setShowLoads] = useState(true)
+  const [showSupportReactions, setShowSupportReactions] = useState(true)
+  const [showElementTag, setShowElementTag] = useState(true)
+  const [showElementSection, setShowElementSection] = useState(false)
+  const [showMemberEndReleases, setShowMemberEndReleases] = useState(false)
   const [loadCaseVisibility, setLoadCaseVisibility] = useState<
     Record<string, boolean>
   >({})
@@ -208,6 +213,23 @@ export function StructureCanvas({ module = 'frame' }: StructureCanvasProps) {
     y: number
   } | null>(null)
   const [multiSelectedIds, setMultiSelectedIds] = useState<string[]>([])
+  const [beamDraftDesignation, setBeamDraftDesignation] = useState(
+    DEFAULT_BEAM_DESIGNATION,
+  )
+  const [beamDraftYoungsModulus, setBeamDraftYoungsModulus] = useState(
+    DEFAULT_YOUNGS_MODULUS_N_PER_MM2,
+  )
+  const [beamDraftReleaseStart, setBeamDraftReleaseStart] = useState(false)
+  const [beamDraftReleaseEnd, setBeamDraftReleaseEnd] = useState(false)
+  const [columnDraftDesignation, setColumnDraftDesignation] = useState(
+    DEFAULT_COLUMN_DESIGNATION,
+  )
+  const [columnDraftYoungsModulus, setColumnDraftYoungsModulus] = useState(
+    DEFAULT_YOUNGS_MODULUS_N_PER_MM2,
+  )
+  const [columnDraftReleaseStart, setColumnDraftReleaseStart] = useState(false)
+  const [columnDraftReleaseEnd, setColumnDraftReleaseEnd] = useState(false)
+  const [supportDraftType, setSupportDraftType] = useState<SupportType>('pinned')
 
   // Canvas origin offset (pixels): where (0, 0) in structural coords maps to
   const [offset, setOffset] = useState({ x: 200, y: 400 })
@@ -298,6 +320,26 @@ export function StructureCanvas({ module = 'frame' }: StructureCanvasProps) {
     return state.pointLoads.filter((p) => loadCaseVisibility[p.loadCaseId] ?? true)
   }, [showLoads, state.pointLoads, loadCaseVisibility])
 
+  const visibleSupportReactions = useMemo(() => {
+    if (!showSupportReactions || !results) return []
+
+    const byNodeName = new Map(results.reactions.map((r) => [r.node, r]))
+    return state.supports
+      .map((sup) => {
+        const node = state.nodes.find((n) => n.id === sup.nodeId)
+        if (!node) return null
+        const reaction = byNodeName.get(node.name)
+        if (!reaction) return null
+        return {
+          id: sup.id,
+          nodeId: sup.nodeId,
+          fx: reaction.fx_kN * 1000,
+          fy: reaction.fy_kN * 1000,
+        }
+      })
+      .filter((item): item is { id: string; nodeId: string; fx: number; fy: number } => item !== null)
+  }, [showSupportReactions, results, state.supports, state.nodes])
+
   const trussStability = useMemo(() => {
     if (module !== 'truss') {
       return { unstable: false, reasons: [] as string[] }
@@ -348,6 +390,47 @@ export function StructureCanvas({ module = 'frame' }: StructureCanvasProps) {
       reasons,
     }
   }, [module, state.elements, state.supports, state.udls])
+
+  const frameReleaseStability = useMemo(() => {
+    if (module !== 'frame') {
+      return { unstable: false, reasons: [] as string[] }
+    }
+
+    const frameElements = state.elements.filter((e) => e.role !== 'truss_member')
+    if (frameElements.length === 0) {
+      return { unstable: false, reasons: [] as string[] }
+    }
+
+    const connected = new Map<string, Array<{ endPinned: boolean }>>()
+    for (const elem of frameElements) {
+      const a = connected.get(elem.nodeI) ?? []
+      a.push({ endPinned: !!elem.releaseStart })
+      connected.set(elem.nodeI, a)
+
+      const b = connected.get(elem.nodeJ) ?? []
+      b.push({ endPinned: !!elem.releaseEnd })
+      connected.set(elem.nodeJ, b)
+    }
+
+    const fixedSupportNodeIds = new Set(
+      state.supports.filter((s) => s.type === 'fixed').map((s) => s.nodeId),
+    )
+
+    const reasons: string[] = []
+    for (const [nodeId, ends] of connected) {
+      if (ends.length < 2) continue
+      if (fixedSupportNodeIds.has(nodeId)) continue
+      if (ends.every((r) => r.endPinned)) {
+        const nodeName = state.nodes.find((n) => n.id === nodeId)?.name ?? nodeId
+        reasons.push(`${nodeName} has only pinned member ends and no fixed restraint.`)
+      }
+    }
+
+    return {
+      unstable: reasons.length > 0,
+      reasons,
+    }
+  }, [module, state.elements, state.nodes, state.supports])
 
   const canDeleteSelected = useMemo(() => {
     if (multiSelectedIds.length > 0) return true
@@ -579,6 +662,14 @@ export function StructureCanvas({ module = 'frame' }: StructureCanvasProps) {
     })
   }, [state.nodes, dims.width, dims.height])
 
+  const fitToOrigin = useCallback(() => {
+    if (dims.width <= 2 || dims.height <= 2) return
+    setOffset({
+      x: dims.width / 2,
+      y: dims.height / 2,
+    })
+  }, [dims.width, dims.height])
+
   const handleStageClick = (e: KonvaEventObject<MouseEvent>) => {
     if (didPan.current) {
       didPan.current = false
@@ -742,29 +833,42 @@ export function StructureCanvas({ module = 'frame' }: StructureCanvasProps) {
           role === 'truss_member'
             ? 'SHS 100x100x8.0'
             : role === 'column'
-              ? 'UC 254x254x89'
-              : 'UB 457x191x67'
+              ? columnDraftDesignation
+              : beamDraftDesignation
         dispatch({
           type: 'ADD_ELEMENT',
           nodeI: state.pendingNodeId,
           nodeJ: nodeId,
           role,
           designation: defaultDesignation,
+          youngsModulus:
+            role === 'beam'
+              ? beamDraftYoungsModulus
+              : role === 'column'
+                ? columnDraftYoungsModulus
+              : DEFAULT_YOUNGS_MODULUS_N_PER_MM2,
+          releaseStart:
+            role === 'beam'
+              ? beamDraftReleaseStart
+              : role === 'column'
+                ? columnDraftReleaseStart
+                : false,
+          releaseEnd:
+            role === 'beam'
+              ? beamDraftReleaseEnd
+              : role === 'column'
+                ? columnDraftReleaseEnd
+                : false,
         })
       }
       return
     }
 
     if (tool === 'support') {
-      const existing = state.supports.find((s) => s.nodeId === nodeId)
-      const currentIdx = existing
-        ? SUPPORT_CYCLE.indexOf(existing.type)
-        : -1
-      const nextType = SUPPORT_CYCLE[(currentIdx + 1) % SUPPORT_CYCLE.length]
       dispatch({
         type: 'ADD_SUPPORT',
         nodeId,
-        supportType: nextType,
+        supportType: supportDraftType,
       })
       return
     }
@@ -783,7 +887,6 @@ export function StructureCanvas({ module = 'frame' }: StructureCanvasProps) {
           mz: 0,
         })
       }
-      dispatch({ type: 'SELECT', id: nodeId })
       return
     }
   }
@@ -813,7 +916,6 @@ export function StructureCanvas({ module = 'frame' }: StructureCanvasProps) {
           wy: -10000,
         })
       }
-      dispatch({ type: 'SELECT', id: elemId })
       return
     }
   }
@@ -1089,6 +1191,177 @@ export function StructureCanvas({ module = 'frame' }: StructureCanvasProps) {
         ? '#404040'
         : '#525252'
 
+  const canvasControls = (
+    <>
+      <div className="flex items-center justify-between gap-2 border-b border-border pb-2">
+        <span className="text-muted-foreground">Zoom {zoomPercent}%</span>
+        <div className="flex items-center gap-1">
+          <Button
+            size="sm"
+            variant="secondary"
+            className="h-8 px-2 md:h-7"
+            onClick={() => setZoomAt(gridSize / 1.15, dims.width / 2, dims.height / 2)}
+            title="Zoom out"
+          >
+            -
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="h-8 px-2 md:h-7"
+            onClick={() => setZoomAt(gridSize * 1.15, dims.width / 2, dims.height / 2)}
+            title="Zoom in"
+          >
+            +
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="h-8 px-2 md:h-7"
+            onClick={fitToStructure}
+            disabled={state.nodes.length === 0}
+            title="Fit structure to canvas"
+          >
+            Fit
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="h-8 px-2 md:h-7"
+            onClick={fitToOrigin}
+            title="Center canvas on origin"
+          >
+            Origin
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-muted-foreground">Canvas diagram</span>
+        <select
+          value={diagramMode}
+          onChange={(e) =>
+            setDiagramMode(
+              e.target.value as
+                | 'none'
+                | 'deflection'
+                | 'axial'
+                | 'shear'
+                | 'moment',
+            )
+          }
+          className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs border border-border"
+        >
+          <option value="none">Off</option>
+          <option value="deflection">Deflection</option>
+          <option value="axial">Axial</option>
+          {module !== 'truss' && <option value="shear">Shear</option>}
+          {module !== 'truss' && <option value="moment">Moment</option>}
+        </select>
+      </div>
+
+      {module === 'truss' && trussStability.unstable && (
+        <div
+          className="flex items-start gap-2 rounded border border-red-500/50 bg-red-500/10 px-2 py-1.5 text-red-700 dark:text-red-300"
+          title={trussStability.reasons.join('\n')}
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div className="text-[11px] leading-snug">
+            Unstable or bending-dependent truss.
+          </div>
+        </div>
+      )}
+
+      <div className="border-t border-border pt-2 space-y-1">
+        <div className="mb-1 text-muted-foreground">Element labels</div>
+        <label className="flex items-center justify-between gap-2">
+          <span className="text-muted-foreground">Show element tag</span>
+          <input
+            type="checkbox"
+            checked={showElementTag}
+            onChange={(e) => setShowElementTag(e.target.checked)}
+          />
+        </label>
+        <label className="flex items-center justify-between gap-2">
+          <span className="text-muted-foreground">Show section size</span>
+          <input
+            type="checkbox"
+            checked={showElementSection}
+            onChange={(e) => setShowElementSection(e.target.checked)}
+          />
+        </label>
+        {module === 'frame' && (
+          <>
+            <label className="flex items-center justify-between gap-2">
+              <span className="text-muted-foreground">Show member end releases</span>
+              <input
+                type="checkbox"
+                checked={showMemberEndReleases}
+                onChange={(e) => setShowMemberEndReleases(e.target.checked)}
+              />
+            </label>
+            {showMemberEndReleases && (
+              <div className="text-[11px] text-muted-foreground">
+                <span className="inline-block h-2 w-2 rounded-full bg-[#facc15]" /> Pinned{' '}
+                <span className="mx-1">•</span>
+                <span className="inline-block h-2 w-2 rounded-full bg-[#16a34a]" /> Fixed
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      <div className="border-t border-border pt-2 space-y-1">
+        <label className="flex items-center justify-between gap-2">
+          <span className="text-muted-foreground">Show support reactions</span>
+          <input
+            type="checkbox"
+            checked={showSupportReactions}
+            onChange={(e) => setShowSupportReactions(e.target.checked)}
+          />
+        </label>
+
+        <label className="flex items-center justify-between gap-2">
+          <span className="text-muted-foreground">Show loads</span>
+          <input
+            type="checkbox"
+            checked={showLoads}
+            onChange={(e) => setShowLoads(e.target.checked)}
+          />
+        </label>
+
+        {showLoads && (
+          <div className="space-y-1">
+            {state.loadCases.map((lc) => (
+              <label
+                key={lc.id}
+                className="flex items-center justify-between gap-2"
+              >
+                <span className="flex items-center gap-1.5">
+                  <span
+                    className="inline-block w-2 h-2 rounded-full"
+                    style={{ backgroundColor: lc.color }}
+                  />
+                  {lc.name}
+                </span>
+                <input
+                  type="checkbox"
+                  checked={loadCaseVisibility[lc.id] ?? true}
+                  onChange={(e) =>
+                    setLoadCaseVisibility((prev) => ({
+                      ...prev,
+                      [lc.id]: e.target.checked,
+                    }))
+                  }
+                />
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  )
+
   return (
     <div
       ref={containerRef}
@@ -1098,6 +1371,24 @@ export function StructureCanvas({ module = 'frame' }: StructureCanvasProps) {
         module={module}
         canDeleteSelected={canDeleteSelected}
         onDeleteSelected={deleteSelected}
+        beamDraftDesignation={beamDraftDesignation}
+        beamDraftYoungsModulus={beamDraftYoungsModulus}
+        beamDraftReleaseStart={beamDraftReleaseStart}
+        beamDraftReleaseEnd={beamDraftReleaseEnd}
+        columnDraftDesignation={columnDraftDesignation}
+        columnDraftYoungsModulus={columnDraftYoungsModulus}
+        columnDraftReleaseStart={columnDraftReleaseStart}
+        columnDraftReleaseEnd={columnDraftReleaseEnd}
+        supportDraftType={supportDraftType}
+        onBeamDraftDesignationChange={setBeamDraftDesignation}
+        onBeamDraftYoungsModulusChange={setBeamDraftYoungsModulus}
+        onBeamDraftReleaseStartChange={setBeamDraftReleaseStart}
+        onBeamDraftReleaseEndChange={setBeamDraftReleaseEnd}
+        onColumnDraftDesignationChange={setColumnDraftDesignation}
+        onColumnDraftYoungsModulusChange={setColumnDraftYoungsModulus}
+        onColumnDraftReleaseStartChange={setColumnDraftReleaseStart}
+        onColumnDraftReleaseEndChange={setColumnDraftReleaseEnd}
+        onSupportDraftTypeChange={setSupportDraftType}
       />
 
       {/* Pending node indicator */}
@@ -1114,117 +1405,15 @@ export function StructureCanvas({ module = 'frame' }: StructureCanvasProps) {
         </div>
       )}
 
-      <div className="absolute z-10 min-w-52 space-y-2 rounded-lg border border-border bg-card/90 px-2 py-2 text-xs backdrop-blur md:top-2 md:right-2 max-md:right-2 max-md:bottom-[4.6rem] max-md:min-w-0 max-md:w-[calc(100%-1rem)]">
-        <div className="flex items-center justify-between gap-2 border-b border-border pb-2">
-          <span className="text-muted-foreground">Zoom {zoomPercent}%</span>
-          <div className="flex items-center gap-1">
-            <Button
-              size="sm"
-              variant="secondary"
-              className="h-8 px-2 md:h-7"
-              onClick={() => setZoomAt(gridSize / 1.15, dims.width / 2, dims.height / 2)}
-              title="Zoom out"
-            >
-              -
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              className="h-8 px-2 md:h-7"
-              onClick={() => setZoomAt(gridSize * 1.15, dims.width / 2, dims.height / 2)}
-              title="Zoom in"
-            >
-              +
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              className="h-8 px-2 md:h-7"
-              onClick={fitToStructure}
-              disabled={state.nodes.length === 0}
-              title="Fit structure to canvas"
-            >
-              Fit
-            </Button>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-muted-foreground">Canvas diagram</span>
-          <select
-            value={diagramMode}
-            onChange={(e) =>
-              setDiagramMode(
-                e.target.value as
-                  | 'none'
-                  | 'deflection'
-                  | 'axial'
-                  | 'shear'
-                  | 'moment',
-              )
-            }
-            className="bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs border border-border"
-          >
-            <option value="none">Off</option>
-            <option value="deflection">Deflection</option>
-            <option value="axial">Axial</option>
-            {module !== 'truss' && <option value="shear">Shear</option>}
-            {module !== 'truss' && <option value="moment">Moment</option>}
-          </select>
-        </div>
-
-        {module === 'truss' && trussStability.unstable && (
-          <div
-            className="flex items-start gap-2 rounded border border-red-500/50 bg-red-500/10 px-2 py-1.5 text-red-700 dark:text-red-300"
-            title={trussStability.reasons.join('\n')}
-          >
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            <div className="text-[11px] leading-snug">
-              Unstable or bending-dependent truss.
-            </div>
-          </div>
-        )}
-
-        <div className="border-t border-border pt-2 space-y-1">
-          <label className="flex items-center justify-between gap-2">
-            <span className="text-muted-foreground">Show loads</span>
-            <input
-              type="checkbox"
-              checked={showLoads}
-              onChange={(e) => setShowLoads(e.target.checked)}
-            />
-          </label>
-
-          {showLoads && (
-            <div className="space-y-1">
-              {state.loadCases.map((lc) => (
-                <label
-                  key={lc.id}
-                  className="flex items-center justify-between gap-2"
-                >
-                  <span className="flex items-center gap-1.5">
-                    <span
-                      className="inline-block w-2 h-2 rounded-full"
-                      style={{ backgroundColor: lc.color }}
-                    />
-                    {lc.name}
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={loadCaseVisibility[lc.id] ?? true}
-                    onChange={(e) =>
-                      setLoadCaseVisibility((prev) => ({
-                        ...prev,
-                        [lc.id]: e.target.checked,
-                      }))
-                    }
-                  />
-                </label>
-              ))}
-            </div>
-          )}
-        </div>
+      <div className="absolute z-10 hidden min-w-52 space-y-2 rounded-lg border border-border bg-card/90 px-2 py-2 text-xs backdrop-blur md:right-2 md:top-2 md:block">
+        {canvasControls}
       </div>
+
+      {mobileControlsOpen && (
+        <div className="absolute z-10 space-y-2 rounded-lg border border-border bg-card/90 px-2 py-2 text-xs backdrop-blur md:hidden left-2 right-2 bottom-[4.6rem]">
+          {canvasControls}
+        </div>
+      )}
 
       <Stage
         width={dims.width}
@@ -1328,10 +1517,15 @@ export function StructureCanvas({ module = 'frame' }: StructureCanvasProps) {
                 y2={p2.py}
                 points={animatedPoints}
                 name={elem.name}
+                designation={elem.designation}
                 role={elem.role}
                 selected={state.selectedId === elem.id || multiSelectedIds.includes(elem.id)}
                 onSelect={() => handleElementClick(elem.id)}
-                showName={elem.role === 'truss_member'}
+                showName={showElementTag}
+                showDesignation={showElementSection}
+                showReleaseState={module === 'frame' && showMemberEndReleases}
+                startPinned={!!elem.releaseStart}
+                endPinned={!!elem.releaseEnd}
               />
             )
           })}
@@ -1413,6 +1607,23 @@ export function StructureCanvas({ module = 'frame' }: StructureCanvasProps) {
                 y={p.py}
                 type={sup.type}
                 onSelect={() => handleSupportClick(sup.id, sup.nodeId)}
+              />
+            )
+          })}
+
+          {/* Support reactions */}
+          {visibleSupportReactions.map((reaction) => {
+            const node = nodeRenderCoords[reaction.nodeId]
+            if (!node) return null
+            const p = toPixel(node.mx, node.my)
+            return (
+              <PointLoadArrow
+                key={`${reaction.id}-reaction`}
+                x={p.px}
+                y={p.py}
+                fx={reaction.fx}
+                fy={reaction.fy}
+                color="#b91c1c"
               />
             )
           })}
@@ -1548,6 +1759,15 @@ export function StructureCanvas({ module = 'frame' }: StructureCanvasProps) {
         </div>
       )}
 
+      {module === 'frame' && frameReleaseStability.unstable && (
+        <div
+          className="absolute z-10 rounded border border-amber-500/60 bg-amber-500/10 px-2 py-1 text-xs text-amber-900 backdrop-blur md:bottom-12 md:left-2 max-md:top-14 max-md:left-2 max-md:right-2"
+          title={frameReleaseStability.reasons.join('\n')}
+        >
+          Potential instability from end releases: {frameReleaseStability.reasons[0]}
+        </div>
+      )}
+
       <div className="absolute bottom-24 left-2 z-10 rounded border border-border bg-card/90 px-2 py-1 text-[11px] text-muted-foreground backdrop-blur max-md:hidden">
         1 grid = {GRID_STEP_LABELS.get(gridStepM) ?? `${gridStepM} m`}
       </div>
@@ -1565,7 +1785,7 @@ export function StructureCanvas({ module = 'frame' }: StructureCanvasProps) {
           max={100}
           step={1}
         />
-        <div className="mt-1">Zoom: wheel · Pan: hand/middle · drag nodes disabled while animating</div>
+        {/* <div className="mt-1">Zoom: wheel · Pan: hand/middle · drag nodes disabled while animating</div> */}
         {deflectionSlider > 0 && !results && (
           <div className="mt-1 text-amber-700 dark:text-amber-400">
             Run analysis to animate deflection.

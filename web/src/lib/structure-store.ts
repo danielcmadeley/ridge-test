@@ -21,6 +21,8 @@ import type {
   ToolType,
 } from './types'
 
+const DEFAULT_YOUNGS_MODULUS_N_PER_MM2 = 210000
+
 const TOOL_TYPES: ToolType[] = [
   'drag',
   'select',
@@ -125,7 +127,12 @@ function nextIdFromPrefix(ids: string[], prefix: 'N' | 'E', fallback: number) {
 
 export function normalizeStructureState(candidate: Partial<StructureState>): StructureState {
   const nodes = Array.isArray(candidate.nodes) ? candidate.nodes : []
-  const elements = Array.isArray(candidate.elements) ? candidate.elements : []
+  const elements = Array.isArray(candidate.elements)
+    ? candidate.elements.map((e) => ({
+        ...e,
+        youngsModulus: e.youngsModulus ?? DEFAULT_YOUNGS_MODULUS_N_PER_MM2,
+      }))
+    : []
   const supports = Array.isArray(candidate.supports) ? candidate.supports : []
   const udls = Array.isArray(candidate.udls) ? candidate.udls : []
   const pointLoads = Array.isArray(candidate.pointLoads) ? candidate.pointLoads : []
@@ -196,6 +203,9 @@ export type StructureAction =
       nodeJ: string
       role: 'beam' | 'column' | 'truss_member'
       designation: string
+      youngsModulus?: number
+      releaseStart?: boolean
+      releaseEnd?: boolean
     }
   | { type: 'UPDATE_ELEMENT'; id: string; changes: Partial<CanvasElement> }
   | { type: 'DELETE_ELEMENT'; id: string }
@@ -333,8 +343,9 @@ function structureReducer(
           nodeI: a,
           nodeJ: b,
           designation: action.designation,
-          releaseStart: false,
-          releaseEnd: false,
+          youngsModulus: action.youngsModulus ?? DEFAULT_YOUNGS_MODULUS_N_PER_MM2,
+          releaseStart: action.releaseStart ?? false,
+          releaseEnd: action.releaseEnd ?? false,
         })
         nextElementId += 1
       }

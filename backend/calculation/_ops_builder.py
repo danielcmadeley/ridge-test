@@ -103,25 +103,37 @@ def _apply_constraints(
     elements: list[FrameElement | TrussElement],
     supports: list[Support],
 ) -> None:
-    """Apply support constraints and fix rz at truss-only nodes.
+    """Apply support constraints and fix rz where no rotational stiffness exists.
 
-    Truss elements provide no rotational stiffness, so nodes connected
-    only to truss elements need their rz DOF fixed to avoid a singular
-    stiffness matrix.
+    Truss elements provide no rotational stiffness. Frame nodes where the
+    connected frame end is released also provide no rotational stiffness at
+    that node. Those rotational DOFs are kinematically free and can make the
+    global stiffness matrix singular, so we restrain rz for such nodes.
     """
-    # Detect truss-only nodes
-    frame_tags: set[int] = set()
+    # Detect where rotational stiffness is present at a node.
+    rotational_frame_tags: set[int] = set()
     truss_tags: set[int] = set()
     for elem in elements:
         if isinstance(elem, FrameElement):
-            frame_tags.add(elem.node_i.tag)
-            frame_tags.add(elem.node_j.tag)
+            start_released = elem.release in (ReleaseType.START, ReleaseType.BOTH)
+            end_released = elem.release in (ReleaseType.END, ReleaseType.BOTH)
+            if not start_released:
+                rotational_frame_tags.add(elem.node_i.tag)
+            if not end_released:
+                rotational_frame_tags.add(elem.node_j.tag)
         elif isinstance(elem, TrussElement):
             truss_tags.add(elem.node_i.tag)
             truss_tags.add(elem.node_j.tag)
-    truss_only = truss_tags - frame_tags
 
-    # Merge support fixity with truss rz fix
+    all_frame_end_tags: set[int] = set()
+    for elem in elements:
+        if isinstance(elem, FrameElement):
+            all_frame_end_tags.add(elem.node_i.tag)
+            all_frame_end_tags.add(elem.node_j.tag)
+
+    no_rotational_stiffness = (truss_tags | all_frame_end_tags) - rotational_frame_tags
+
+    # Merge support fixity with rz-fix for nodes without rotational stiffness
     fixity: dict[int, list[int]] = {}
 
     for sup in supports:
@@ -132,7 +144,7 @@ def _apply_constraints(
         else:
             fixity[tag] = list(f)
 
-    for tag in truss_only:
+    for tag in no_rotational_stiffness:
         if tag in fixity:
             fixity[tag][2] = 1
         else:

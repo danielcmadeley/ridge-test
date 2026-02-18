@@ -40,13 +40,20 @@ export function GridLayer({
   for (let i = startX; i <= endX; i++) {
     const x = i * stepPx + offsetX
     const isMajor = i % majorEvery === 0
+    const isOriginAxis = i === 0
     const xMetres = i * gridStepM
     lines.push(
       <Line
         key={`v${i}`}
         points={[x, 0, x, height]}
-        stroke={isMajor ? 'rgba(38,38,38,0.24)' : 'rgba(64,64,64,0.14)'}
-        strokeWidth={isMajor ? 1 : 0.5}
+        stroke={
+          isOriginAxis
+            ? '#86efac'
+            : isMajor
+              ? 'rgba(38,38,38,0.24)'
+              : 'rgba(64,64,64,0.14)'
+        }
+        strokeWidth={isOriginAxis ? 1.5 : isMajor ? 1 : 0.5}
         listening={false}
       />,
     )
@@ -69,13 +76,20 @@ export function GridLayer({
   for (let j = startY; j <= endY; j++) {
     const y = j * stepPx + offsetY
     const isMajor = j % majorEvery === 0
+    const isOriginAxis = j === 0
     const yMetres = -j * gridStepM
     lines.push(
       <Line
         key={`h${j}`}
         points={[0, y, width, y]}
-        stroke={isMajor ? 'rgba(38,38,38,0.24)' : 'rgba(64,64,64,0.14)'}
-        strokeWidth={isMajor ? 1 : 0.5}
+        stroke={
+          isOriginAxis
+            ? '#86efac'
+            : isMajor
+              ? 'rgba(38,38,38,0.24)'
+              : 'rgba(64,64,64,0.14)'
+        }
+        strokeWidth={isOriginAxis ? 1.5 : isMajor ? 1 : 0.5}
         listening={false}
       />,
     )

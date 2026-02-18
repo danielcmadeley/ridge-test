@@ -142,38 +142,44 @@ export function PropertiesPanel({ module = 'frame' }: PropertiesPanelProps) {
                   changes: { designation },
                 })
               }
-              role={selectedElement.role}
+              elementRole={selectedElement.role}
             />
 
             {module !== 'truss' && selectedElement.role !== 'truss_member' && (
               <div className="rounded-md border border-border bg-secondary/60 p-2 grid grid-cols-1 gap-2">
-                <label className="flex items-center gap-2 text-xs">
-                  <input
-                    type="checkbox"
-                    checked={!!selectedElement.releaseStart}
+                <label className="block text-xs">
+                  <div className="mb-1 text-muted-foreground">Start end release</div>
+                  <select
+                    value={selectedElement.releaseStart ? 'pinned' : 'fixed'}
                     onChange={(e) =>
                       dispatch({
                         type: 'UPDATE_ELEMENT',
                         id: selectedElement.id,
-                        changes: { releaseStart: e.target.checked },
+                        changes: { releaseStart: e.target.value === 'pinned' },
                       })
                     }
-                  />
-                  <span>Start pin release</span>
+                    className="w-full rounded border border-border bg-secondary px-2 py-1 text-xs text-secondary-foreground"
+                  >
+                    <option value="fixed">Fixed</option>
+                    <option value="pinned">Pinned</option>
+                  </select>
                 </label>
-                <label className="flex items-center gap-2 text-xs">
-                  <input
-                    type="checkbox"
-                    checked={!!selectedElement.releaseEnd}
+                <label className="block text-xs">
+                  <div className="mb-1 text-muted-foreground">End end release</div>
+                  <select
+                    value={selectedElement.releaseEnd ? 'pinned' : 'fixed'}
                     onChange={(e) =>
                       dispatch({
                         type: 'UPDATE_ELEMENT',
                         id: selectedElement.id,
-                        changes: { releaseEnd: e.target.checked },
+                        changes: { releaseEnd: e.target.value === 'pinned' },
                       })
                     }
-                  />
-                  <span>End pin release</span>
+                    className="w-full rounded border border-border bg-secondary px-2 py-1 text-xs text-secondary-foreground"
+                  >
+                    <option value="fixed">Fixed</option>
+                    <option value="pinned">Pinned</option>
+                  </select>
                 </label>
               </div>
             )}
