@@ -21,6 +21,18 @@ import type {
   ToolType,
 } from './types'
 
+const TOOL_TYPES: ToolType[] = [
+  'drag',
+  'select',
+  'erase',
+  'node',
+  'beam',
+  'column',
+  'truss',
+  'support',
+  'load',
+]
+
 // ── Load case defaults ──────────────────────────────────────
 
 const LOAD_CASE_COLORS: Record<LoadCaseCategory, string> = {
@@ -84,7 +96,7 @@ const DEFAULT_COMBINATIONS: LoadCombination[] = [
 
 // ── Initial state ────────────────────────────────────────────
 
-const initialState: StructureState = {
+export const initialStructureState: StructureState = {
   nodes: [],
   elements: [],
   supports: [],
@@ -100,6 +112,77 @@ const initialState: StructureState = {
   activeLoadCaseId: 'LC-G',
   combinations: DEFAULT_COMBINATIONS,
 }
+
+function nextIdFromPrefix(ids: string[], prefix: 'N' | 'E', fallback: number) {
+  let maxId = fallback - 1
+  for (const id of ids) {
+    if (!id.startsWith(prefix)) continue
+    const n = Number.parseInt(id.slice(1), 10)
+    if (!Number.isNaN(n)) maxId = Math.max(maxId, n)
+  }
+  return Math.max(fallback, maxId + 1)
+}
+
+export function normalizeStructureState(candidate: Partial<StructureState>): StructureState {
+  const nodes = Array.isArray(candidate.nodes) ? candidate.nodes : []
+  const elements = Array.isArray(candidate.elements) ? candidate.elements : []
+  const supports = Array.isArray(candidate.supports) ? candidate.supports : []
+  const udls = Array.isArray(candidate.udls) ? candidate.udls : []
+  const pointLoads = Array.isArray(candidate.pointLoads) ? candidate.pointLoads : []
+  const loadCases =
+    Array.isArray(candidate.loadCases) && candidate.loadCases.length > 0
+      ? candidate.loadCases
+      : DEFAULT_LOAD_CASES
+  const combinations =
+    Array.isArray(candidate.combinations) && candidate.combinations.length > 0
+      ? candidate.combinations
+      : DEFAULT_COMBINATIONS
+
+  const nodeIds = nodes.map((n) => n.id)
+  const elementIds = elements.map((e) => e.id)
+  const selectableIds = [
+    ...nodeIds,
+    ...elementIds,
+    ...supports.map((s) => s.id),
+    ...udls.map((u) => u.id),
+    ...pointLoads.map((p) => p.id),
+  ]
+
+  const activeLoadCaseId =
+    typeof candidate.activeLoadCaseId === 'string' &&
+    loadCases.some((lc) => lc.id === candidate.activeLoadCaseId)
+      ? candidate.activeLoadCaseId
+      : loadCases[0].id
+
+  return {
+    ...initialStructureState,
+    nodes,
+    elements,
+    supports,
+    udls,
+    pointLoads,
+    steelGrade: candidate.steelGrade ?? initialStructureState.steelGrade,
+    selectedTool:
+      candidate.selectedTool && TOOL_TYPES.includes(candidate.selectedTool)
+        ? candidate.selectedTool
+        : initialStructureState.selectedTool,
+    selectedId:
+      typeof candidate.selectedId === 'string' && selectableIds.includes(candidate.selectedId)
+        ? candidate.selectedId
+        : null,
+    pendingNodeId:
+      typeof candidate.pendingNodeId === 'string' && nodeIds.includes(candidate.pendingNodeId)
+        ? candidate.pendingNodeId
+        : null,
+    nextNodeId: nextIdFromPrefix(nodeIds, 'N', candidate.nextNodeId ?? 1),
+    nextElementId: nextIdFromPrefix(elementIds, 'E', candidate.nextElementId ?? 1),
+    loadCases,
+    activeLoadCaseId,
+    combinations,
+  }
+}
+
+const initialState: StructureState = { ...initialStructureState }
 
 // ── Actions ──────────────────────────────────────────────────
 
@@ -147,6 +230,7 @@ export type StructureAction =
   | { type: 'SET_PENDING_NODE'; nodeId: string | null }
   | { type: 'SET_STEEL_GRADE'; grade: string }
   | { type: 'CLEAR_ALL' }
+  | { type: 'REPLACE_STATE'; state: StructureState }
   // Load case actions
   | { type: 'SET_ACTIVE_LOAD_CASE'; loadCaseId: string }
   | {
@@ -393,6 +477,9 @@ function structureReducer(
 
     case 'CLEAR_ALL':
       return { ...initialState }
+
+    case 'REPLACE_STATE':
+      return normalizeStructureState(action.state)
 
     // Load case actions
     case 'SET_ACTIVE_LOAD_CASE':

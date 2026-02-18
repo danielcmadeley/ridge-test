@@ -1,6 +1,17 @@
 import { useMutation } from '@tanstack/react-query'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { Box, Calculator, GitFork, Menu, Play, Trash2, Wrench } from 'lucide-react'
+import {
+  Box,
+  Calculator,
+  Download,
+  FolderOpen,
+  GitFork,
+  Menu,
+  Play,
+  Save,
+  Trash2,
+  Wrench,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   CommandDialog,
@@ -15,11 +26,19 @@ import {
   useStructure,
   useStructureDispatch,
   toStructureInput,
+  normalizeStructureState,
 } from '@/lib/structure-store'
 import { analyzeStructure } from '@/lib/api'
 import type { AnalysisOutput } from '@/lib/types'
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { ThemeModeToggle } from '@/components/ThemeModeToggle'
+import {
+  clearAutosave,
+  downloadStructureFile,
+  loadFromAutosave,
+  readStructureFile,
+  saveToAutosave,
+} from '@/lib/structure-persistence'
 
 interface UnifiedHeaderProps {
   title: string
@@ -65,6 +84,9 @@ export function ModuleToolbar({ module = 'frame' }: ModuleToolbarProps) {
   const state = useStructure()
   const dispatch = useStructureDispatch()
   const { setResults } = useAnalysisResults()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [persistError, setPersistError] = useState<string | null>(null)
+  const [autosaveReady, setAutosaveReady] = useState(false)
 
   const mutation = useMutation({
     mutationFn: analyzeStructure,
@@ -75,6 +97,64 @@ export function ModuleToolbar({ module = 'frame' }: ModuleToolbarProps) {
     state.nodes.length >= 2 &&
     state.elements.length >= 1 &&
     state.supports.length >= 1
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const restored = loadFromAutosave(module)
+    if (restored) {
+      dispatch({ type: 'REPLACE_STATE', state: normalizeStructureState(restored) })
+      setResults(null)
+    }
+    setAutosaveReady(true)
+  }, [dispatch, module, setResults])
+
+  useEffect(() => {
+    if (!autosaveReady) return
+    const timeout = window.setTimeout(() => {
+      try {
+        saveToAutosave(module, state)
+      } catch {
+        // Ignore autosave failures (quota/private mode)
+      }
+    }, 400)
+
+    return () => window.clearTimeout(timeout)
+  }, [autosaveReady, module, state])
+
+  const saveNow = () => {
+    try {
+      saveToAutosave(module, state)
+      setPersistError(null)
+    } catch {
+      setPersistError('Unable to save to browser storage')
+    }
+  }
+
+  const downloadNow = () => {
+    try {
+      downloadStructureFile(module, state)
+      setPersistError(null)
+    } catch {
+      setPersistError('Unable to download file')
+    }
+  }
+
+  const onPickFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    try {
+      const restored = await readStructureFile(file, module)
+      dispatch({ type: 'REPLACE_STATE', state: restored })
+      setResults(null)
+      saveToAutosave(module, restored)
+      setPersistError(null)
+    } catch (err) {
+      setPersistError((err as Error).message)
+    } finally {
+      e.target.value = ''
+    }
+  }
 
   return (
     <UnifiedHeader
@@ -99,6 +179,33 @@ export function ModuleToolbar({ module = 'frame' }: ModuleToolbarProps) {
       }
       rightControls={
         <>
+          <Button size="sm" variant="secondary" onClick={saveNow}>
+            <Save className="w-4 h-4 mr-1" />
+            Save Local
+          </Button>
+
+          <Button size="sm" variant="secondary" onClick={downloadNow}>
+            <Download className="w-4 h-4 mr-1" />
+            Download
+          </Button>
+
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <FolderOpen className="w-4 h-4 mr-1" />
+            Open
+          </Button>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,.ridge.json"
+            onChange={onPickFile}
+            className="hidden"
+          />
+
           <Button
             size="sm"
             variant="default"
@@ -115,12 +222,17 @@ export function ModuleToolbar({ module = 'frame' }: ModuleToolbarProps) {
             </span>
           )}
 
+          {persistError && (
+            <span className="text-xs text-destructive">{persistError}</span>
+          )}
+
           <Button
             size="sm"
             variant="ghost"
             onClick={() => {
               dispatch({ type: 'CLEAR_ALL' })
               setResults(null)
+              clearAutosave(module)
             }}
           >
             <Trash2 className="w-4 h-4" />
