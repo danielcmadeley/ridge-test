@@ -10,6 +10,7 @@ interface NodeShapeProps {
   onDragEnd: (x: number, y: number) => void
   draggable: boolean
   gridSize: number
+  gridStepM: number
   offsetX: number
   offsetY: number
 }
@@ -23,6 +24,7 @@ export function NodeShape({
   onDragEnd,
   draggable,
   gridSize,
+  gridStepM,
   offsetX,
   offsetY,
 }: NodeShapeProps) {
@@ -30,12 +32,12 @@ export function NodeShape({
     // Snap to grid in metres
     const rawX = (e.target.x() - offsetX) / gridSize
     const rawY = -(e.target.y() - offsetY) / gridSize
-    const snappedX = Math.round(rawX)
-    const snappedY = Math.round(rawY)
+    const snappedX = Math.round(rawX / gridStepM) * gridStepM
+    const snappedY = Math.round(rawY / gridStepM) * gridStepM
     // Set position to snapped pixel location
     e.target.x(snappedX * gridSize + offsetX)
     e.target.y(-snappedY * gridSize + offsetY)
-    onDragEnd(snappedX, snappedY)
+    onDragEnd(Number(snappedX.toFixed(6)), Number(snappedY.toFixed(6)))
   }
 
   return (

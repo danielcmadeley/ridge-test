@@ -9,10 +9,16 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TrussRouteImport } from './routes/truss'
 import { Route as SectionPropertiesCalculatorRouteImport } from './routes/section-properties-calculator'
 import { Route as R3dLoadTakedownRouteImport } from './routes/3d-load-takedown'
 import { Route as IndexRouteImport } from './routes/index'
 
+const TrussRoute = TrussRouteImport.update({
+  id: '/truss',
+  path: '/truss',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SectionPropertiesCalculatorRoute =
   SectionPropertiesCalculatorRouteImport.update({
     id: '/section-properties-calculator',
@@ -34,34 +40,54 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/3d-load-takedown': typeof R3dLoadTakedownRoute
   '/section-properties-calculator': typeof SectionPropertiesCalculatorRoute
+  '/truss': typeof TrussRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/3d-load-takedown': typeof R3dLoadTakedownRoute
   '/section-properties-calculator': typeof SectionPropertiesCalculatorRoute
+  '/truss': typeof TrussRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/3d-load-takedown': typeof R3dLoadTakedownRoute
   '/section-properties-calculator': typeof SectionPropertiesCalculatorRoute
+  '/truss': typeof TrussRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/3d-load-takedown' | '/section-properties-calculator'
+  fullPaths:
+    | '/'
+    | '/3d-load-takedown'
+    | '/section-properties-calculator'
+    | '/truss'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/3d-load-takedown' | '/section-properties-calculator'
-  id: '__root__' | '/' | '/3d-load-takedown' | '/section-properties-calculator'
+  to: '/' | '/3d-load-takedown' | '/section-properties-calculator' | '/truss'
+  id:
+    | '__root__'
+    | '/'
+    | '/3d-load-takedown'
+    | '/section-properties-calculator'
+    | '/truss'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   R3dLoadTakedownRoute: typeof R3dLoadTakedownRoute
   SectionPropertiesCalculatorRoute: typeof SectionPropertiesCalculatorRoute
+  TrussRoute: typeof TrussRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/truss': {
+      id: '/truss'
+      path: '/truss'
+      fullPath: '/truss'
+      preLoaderRoute: typeof TrussRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/section-properties-calculator': {
       id: '/section-properties-calculator'
       path: '/section-properties-calculator'
@@ -90,6 +116,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   R3dLoadTakedownRoute: R3dLoadTakedownRoute,
   SectionPropertiesCalculatorRoute: SectionPropertiesCalculatorRoute,
+  TrussRoute: TrussRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

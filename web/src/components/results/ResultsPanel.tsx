@@ -7,7 +7,11 @@ import { ForceDiagram } from './ForceDiagram'
 import { ReportDownload } from './ReportDownload'
 import type { ReactionOutput } from '@/lib/types'
 
-export function ResultsPanel() {
+interface ResultsPanelProps {
+  module?: 'frame' | 'truss'
+}
+
+export function ResultsPanel({ module = 'frame' }: ResultsPanelProps) {
   const { results } = useAnalysisResults()
   const [selectedElement, setSelectedElement] = useState<string | null>(null)
   const [selectedCombo, setSelectedCombo] = useState<string>('governing')
@@ -52,7 +56,7 @@ export function ResultsPanel() {
         </h3>
 
         {/* Combination selector */}
-        {hasCombinations && (
+        {module !== 'truss' && hasCombinations && (
           <div className="space-y-1">
             <h4 className="text-xs font-medium text-muted-foreground">
               View Combination
@@ -114,7 +118,8 @@ export function ResultsPanel() {
         </div>
 
         {/* Governing combinations per element */}
-        {results.governing_combinations &&
+        {module !== 'truss' &&
+          results.governing_combinations &&
           Object.keys(results.governing_combinations).length > 0 && (
             <div className="space-y-1">
               <h4 className="text-xs font-medium text-muted-foreground">
@@ -153,12 +158,32 @@ export function ResultsPanel() {
           )}
 
         {/* Design summary */}
-        <DesignSummary
-          elements={results.elements}
-          allPass={results.all_pass}
-          selectedElement={selectedElement}
-          onSelectElement={setSelectedElement}
-        />
+        {module !== 'truss' && (
+          <DesignSummary
+            elements={results.elements}
+            allPass={results.all_pass}
+            selectedElement={selectedElement}
+            onSelectElement={setSelectedElement}
+          />
+        )}
+
+        {module === 'truss' && (
+          <div className="space-y-1">
+            <h4 className="text-xs font-medium text-muted-foreground">Truss Members</h4>
+            <select
+              value={selectedElement ?? ''}
+              onChange={(e) => setSelectedElement(e.target.value || null)}
+              className="w-full rounded border border-border bg-secondary px-2 py-1 text-xs text-secondary-foreground"
+            >
+              <option value="">Select member</option>
+              {results.elements.map((e) => (
+                <option key={e.name} value={e.name}>
+                  {e.name} - {e.designation}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Force diagrams for selected element or whole frame */}
         {results.elements.length > 0 && (
@@ -196,16 +221,18 @@ export function ResultsPanel() {
         )}
 
         {/* Design step detail for selected element */}
-        {selectedElem && (
+        {module !== 'truss' && selectedElem && (
           <div className="border-t border-border pt-3">
             <DesignStepDetail element={selectedElem} />
           </div>
         )}
 
         {/* PDF download */}
-        <div className="border-t border-border pt-3">
-          <ReportDownload />
-        </div>
+        {module !== 'truss' && (
+          <div className="border-t border-border pt-3">
+            <ReportDownload />
+          </div>
+        )}
       </div>
     </ScrollArea>
   )

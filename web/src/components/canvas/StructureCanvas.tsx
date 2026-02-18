@@ -1,7 +1,9 @@
 import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
-import { Stage, Layer, Line, Circle } from 'react-konva'
+import { Stage, Layer, Line, Circle, Rect } from 'react-konva'
 import type { KonvaEventObject } from 'konva/lib/Node'
+import { Gauge } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Slider } from '@/components/ui/slider'
 import { GridLayer } from './GridLayer'
 import { NodeShape } from './NodeShape'
 import { ElementLine } from './ElementLine'
@@ -18,13 +20,53 @@ import { fetchDiagrams } from '@/lib/api'
 import type { DiagramOutput } from '@/lib/types'
 
 const DEFAULT_GRID_SIZE = 60 // pixels per metre
-const MIN_GRID_SIZE = 20
-const MAX_GRID_SIZE = 200
+const MIN_GRID_SIZE = 0.42
+const MAX_GRID_SIZE = 42000
+const AXIAL_COLOR_THRESHOLD_KN = 0.5
+const DEFLECTION_TARGET_MAX_PX = 120
+const GRID_STEP_OPTIONS_M = [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 10, 50, 100]
+const GRID_STEP_LABELS = new Map<number, string>([
+  [0.001, '1 mm'],
+  [0.005, '5 mm'],
+  [0.01, '1 cm'],
+  [0.05, '5 cm'],
+  [0.1, '10 cm'],
+  [0.5, '50 cm'],
+  [1, '1 m'],
+  [10, '10 m'],
+  [50, '50 m'],
+  [100, '100 m'],
+])
 const SUPPORT_CYCLE: Array<'pinned' | 'fixed' | 'roller'> = [
   'pinned',
   'fixed',
   'roller',
 ]
+
+function axialSignColor(values: number[]) {
+  if (values.length === 0) return '#a855f7'
+  const avg = values.reduce((sum, v) => sum + v, 0) / values.length
+  if (avg > AXIAL_COLOR_THRESHOLD_KN) return '#dc2626'
+  if (avg < -AXIAL_COLOR_THRESHOLD_KN) return '#2563eb'
+  return '#6b7280'
+}
+
+function chooseGridStepMetres(pxPerMetre: number) {
+  const targetPx = 42
+  let best = GRID_STEP_OPTIONS_M[0]
+  let bestDist = Number.POSITIVE_INFINITY
+
+  for (const step of GRID_STEP_OPTIONS_M) {
+    const spacingPx = pxPerMetre * step
+    const dist = Math.abs(spacingPx - targetPx)
+    if (dist < bestDist) {
+      best = step
+      bestDist = dist
+    }
+  }
+
+  return best
+}
 
 function hexToRgba(hex: string, alpha: number) {
   const clean = hex.replace('#', '')
@@ -49,10 +91,87 @@ function reversePointPairs(points: number[]) {
   return out
 }
 
-export function StructureCanvas() {
+function pointInRect(
+  x: number,
+  y: number,
+  minX: number,
+  minY: number,
+  maxX: number,
+  maxY: number,
+) {
+  return x >= minX && x <= maxX && y >= minY && y <= maxY
+}
+
+function orientation(ax: number, ay: number, bx: number, by: number, cx: number, cy: number) {
+  const val = (by - ay) * (cx - bx) - (bx - ax) * (cy - by)
+  if (Math.abs(val) < 1e-9) return 0
+  return val > 0 ? 1 : 2
+}
+
+function onSegment(ax: number, ay: number, bx: number, by: number, cx: number, cy: number) {
+  return (
+    bx <= Math.max(ax, cx) &&
+    bx >= Math.min(ax, cx) &&
+    by <= Math.max(ay, cy) &&
+    by >= Math.min(ay, cy)
+  )
+}
+
+function segmentsIntersect(
+  p1x: number,
+  p1y: number,
+  q1x: number,
+  q1y: number,
+  p2x: number,
+  p2y: number,
+  q2x: number,
+  q2y: number,
+) {
+  const o1 = orientation(p1x, p1y, q1x, q1y, p2x, p2y)
+  const o2 = orientation(p1x, p1y, q1x, q1y, q2x, q2y)
+  const o3 = orientation(p2x, p2y, q2x, q2y, p1x, p1y)
+  const o4 = orientation(p2x, p2y, q2x, q2y, q1x, q1y)
+
+  if (o1 !== o2 && o3 !== o4) return true
+  if (o1 === 0 && onSegment(p1x, p1y, p2x, p2y, q1x, q1y)) return true
+  if (o2 === 0 && onSegment(p1x, p1y, q2x, q2y, q1x, q1y)) return true
+  if (o3 === 0 && onSegment(p2x, p2y, p1x, p1y, q2x, q2y)) return true
+  if (o4 === 0 && onSegment(p2x, p2y, q1x, q1y, q2x, q2y)) return true
+  return false
+}
+
+function lineIntersectsRect(
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  minX: number,
+  minY: number,
+  maxX: number,
+  maxY: number,
+) {
+  if (pointInRect(x1, y1, minX, minY, maxX, maxY) || pointInRect(x2, y2, minX, minY, maxX, maxY)) {
+    return true
+  }
+
+  return (
+    segmentsIntersect(x1, y1, x2, y2, minX, minY, maxX, minY) ||
+    segmentsIntersect(x1, y1, x2, y2, maxX, minY, maxX, maxY) ||
+    segmentsIntersect(x1, y1, x2, y2, maxX, maxY, minX, maxY) ||
+    segmentsIntersect(x1, y1, x2, y2, minX, maxY, minX, minY)
+  )
+}
+
+interface StructureCanvasProps {
+  module?: 'frame' | 'truss'
+}
+
+export function StructureCanvas({ module = 'frame' }: StructureCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const isPanning = useRef(false)
   const didPan = useRef(false)
+  const isBoxSelecting = useRef(false)
+  const didBoxSelect = useRef(false)
   const lastPanPos = useRef<{ x: number; y: number } | null>(null)
   const [dims, setDims] = useState({ width: 800, height: 600 })
   const [gridSize, setGridSize] = useState(DEFAULT_GRID_SIZE)
@@ -62,6 +181,8 @@ export function StructureCanvas() {
   const [diagramData, setDiagramData] = useState<Record<string, DiagramOutput>>({})
   const [diagramLoading, setDiagramLoading] = useState(false)
   const [diagramError, setDiagramError] = useState<string | null>(null)
+
+  const gridStepM = useMemo(() => chooseGridStepMetres(gridSize), [gridSize])
   const [hoverProbe, setHoverProbe] = useState<{
     px: number
     py: number
@@ -77,6 +198,16 @@ export function StructureCanvas() {
     mx: number
     my: number
   } | null>(null)
+  const [deflectionSlider, setDeflectionSlider] = useState(0)
+  const [boxSelectionStart, setBoxSelectionStart] = useState<{
+    x: number
+    y: number
+  } | null>(null)
+  const [boxSelectionEnd, setBoxSelectionEnd] = useState<{
+    x: number
+    y: number
+  } | null>(null)
+  const [multiSelectedIds, setMultiSelectedIds] = useState<string[]>([])
 
   // Canvas origin offset (pixels): where (0, 0) in structural coords maps to
   const [offset, setOffset] = useState({ x: 200, y: 400 })
@@ -84,10 +215,67 @@ export function StructureCanvas() {
   const state = useStructure()
   const dispatch = useStructureDispatch()
   const { results } = useAnalysisResults()
+
+  useEffect(() => {
+    if (module === 'truss' && (state.selectedTool === 'beam' || state.selectedTool === 'column')) {
+      dispatch({ type: 'SET_TOOL', tool: 'truss' })
+    }
+  }, [dispatch, module, state.selectedTool])
   const elementNames = useMemo(
     () => state.elements.map((e) => e.name),
     [state.elements],
   )
+
+  const maxResultDispM = useMemo(() => {
+    if (!results) return 0
+    let maxDisp = 0
+    for (const value of Object.values(results.displacements ?? {})) {
+      const dxm = (value[0] ?? 0) / 1000
+      const dym = (value[1] ?? 0) / 1000
+      const mag = Math.hypot(dxm, dym)
+      if (mag > maxDisp) maxDisp = mag
+    }
+    return maxDisp
+  }, [results])
+
+  const maxDiagramDeflectionM = useMemo(() => {
+    let maxDeflMm = 0
+    for (const d of Object.values(diagramData)) {
+      for (const v of d.deflection) {
+        const abs = Math.abs(v)
+        if (abs > maxDeflMm) maxDeflMm = abs
+      }
+    }
+    return maxDeflMm / 1000
+  }, [diagramData])
+
+  const maxRenderableDeflectionM = Math.max(maxResultDispM, maxDiagramDeflectionM)
+
+  const deflectionFactor = useMemo(() => {
+    if (deflectionSlider <= 0 || maxRenderableDeflectionM <= 1e-12) return 0
+    const fullScaleFactor = DEFLECTION_TARGET_MAX_PX / (maxRenderableDeflectionM * gridSize)
+    return (deflectionSlider / 100) * fullScaleFactor
+  }, [deflectionSlider, gridSize, maxRenderableDeflectionM])
+
+  const nodeRenderCoords = useMemo(() => {
+    const map: Record<string, { mx: number; my: number }> = {}
+    for (const node of state.nodes) {
+      const disp = results?.displacements?.[node.name]
+      const dxm = disp ? (disp[0] / 1000) * deflectionFactor : 0
+      const dym = disp ? (disp[1] / 1000) * deflectionFactor : 0
+      map[node.id] = {
+        mx: node.x + dxm,
+        my: node.y + dym,
+      }
+    }
+    return map
+  }, [deflectionFactor, results, state.nodes])
+
+  useEffect(() => {
+    if (module === 'truss' && (diagramMode === 'shear' || diagramMode === 'moment')) {
+      setDiagramMode('axial')
+    }
+  }, [diagramMode, module])
   const structureForDiagrams = useMemo(() => toStructureInput(state), [state])
 
   useEffect(() => {
@@ -111,6 +299,7 @@ export function StructureCanvas() {
   }, [showLoads, state.pointLoads, loadCaseVisibility])
 
   const canDeleteSelected = useMemo(() => {
+    if (multiSelectedIds.length > 0) return true
     if (!state.selectedId) return false
     const id = state.selectedId
     return (
@@ -120,7 +309,7 @@ export function StructureCanvas() {
       state.udls.some((u) => u.id === id) ||
       state.pointLoads.some((p) => p.id === id)
     )
-  }, [state.selectedId, state.nodes, state.elements, state.supports, state.udls, state.pointLoads])
+  }, [multiSelectedIds.length, state.selectedId, state.nodes, state.elements, state.supports, state.udls, state.pointLoads])
 
   const deleteById = useCallback(
     (id: string) => {
@@ -148,9 +337,18 @@ export function StructureCanvas() {
   )
 
   const deleteSelected = useCallback(() => {
+    if (multiSelectedIds.length > 0) {
+      const ids = Array.from(new Set(multiSelectedIds))
+      for (const id of ids) {
+        deleteById(id)
+      }
+      setMultiSelectedIds([])
+      dispatch({ type: 'SELECT', id: null })
+      return
+    }
     if (!state.selectedId) return
     deleteById(state.selectedId)
-  }, [state.selectedId, deleteById])
+  }, [dispatch, multiSelectedIds, state.selectedId, deleteById])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -179,6 +377,15 @@ export function StructureCanvas() {
     return () => obs.disconnect()
   }, [])
 
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const stageEl = el.querySelector('canvas')?.parentElement
+    if (!stageEl) return
+    if (isPanning.current) return
+    stageEl.style.cursor = state.selectedTool === 'drag' ? 'grab' : 'default'
+  }, [state.selectedTool])
+
   // Convert structural coords (m) to canvas pixels
   const toPixel = useCallback(
     (mx: number, my: number) => ({
@@ -190,11 +397,84 @@ export function StructureCanvas() {
 
   // Convert canvas pixels to structural metres (snapped)
   const toMetres = useCallback(
+    (px: number, py: number) => {
+      const rawX = (px - offset.x) / gridSize
+      const rawY = -((py - offset.y) / gridSize)
+      const snap = (value: number) =>
+        Number((Math.round(value / gridStepM) * gridStepM).toFixed(6))
+      return {
+        mx: snap(rawX),
+        my: snap(rawY),
+      }
+    },
+    [gridSize, gridStepM, offset],
+  )
+
+  const toMetresRaw = useCallback(
     (px: number, py: number) => ({
-      mx: Math.round((px - offset.x) / gridSize),
-      my: -Math.round((py - offset.y) / gridSize),
+      mx: (px - offset.x) / gridSize,
+      my: -(py - offset.y) / gridSize,
     }),
     [gridSize, offset],
+  )
+
+  const selectIdsWithinBox = useCallback(
+    (startPx: { x: number; y: number }, endPx: { x: number; y: number }) => {
+      const minPxX = Math.min(startPx.x, endPx.x)
+      const maxPxX = Math.max(startPx.x, endPx.x)
+      const minPxY = Math.min(startPx.y, endPx.y)
+      const maxPxY = Math.max(startPx.y, endPx.y)
+      const dragDistance = Math.hypot(endPx.x - startPx.x, endPx.y - startPx.y)
+      if (dragDistance < 6) {
+        setMultiSelectedIds([])
+        return false
+      }
+
+      const startM = toMetresRaw(minPxX, maxPxY)
+      const endM = toMetresRaw(maxPxX, minPxY)
+      const minX = Math.min(startM.mx, endM.mx)
+      const maxX = Math.max(startM.mx, endM.mx)
+      const minY = Math.min(startM.my, endM.my)
+      const maxY = Math.max(startM.my, endM.my)
+
+      const selectedNodeIds = state.nodes
+        .filter((node) => pointInRect(node.x, node.y, minX, minY, maxX, maxY))
+        .map((node) => node.id)
+
+      const selectedElementIds = state.elements
+        .filter((elem) => {
+          const ni = state.nodes.find((n) => n.id === elem.nodeI)
+          const nj = state.nodes.find((n) => n.id === elem.nodeJ)
+          if (!ni || !nj) return false
+          return lineIntersectsRect(ni.x, ni.y, nj.x, nj.y, minX, minY, maxX, maxY)
+        })
+        .map((elem) => elem.id)
+
+      const selectedSupportIds = state.supports
+        .filter((support) => selectedNodeIds.includes(support.nodeId))
+        .map((support) => support.id)
+
+      const selectedPointLoadIds = state.pointLoads
+        .filter((pointLoad) => selectedNodeIds.includes(pointLoad.nodeId))
+        .map((pointLoad) => pointLoad.id)
+
+      const selectedUdlIds = state.udls
+        .filter((udl) => selectedElementIds.includes(udl.elementId))
+        .map((udl) => udl.id)
+
+      const ids = [
+        ...selectedElementIds,
+        ...selectedNodeIds,
+        ...selectedSupportIds,
+        ...selectedPointLoadIds,
+        ...selectedUdlIds,
+      ]
+
+      setMultiSelectedIds(ids)
+      dispatch({ type: 'SELECT', id: ids[0] ?? null })
+      return true
+    },
+    [dispatch, state.elements, state.nodes, state.pointLoads, state.supports, state.udls, toMetresRaw],
   )
 
   const setZoomAt = useCallback(
@@ -253,6 +533,10 @@ export function StructureCanvas() {
       didPan.current = false
       return
     }
+    if (didBoxSelect.current) {
+      didBoxSelect.current = false
+      return
+    }
 
     // Only handle clicks on the stage itself (not on shapes)
     if (e.target !== e.currentTarget) return
@@ -264,8 +548,10 @@ export function StructureCanvas() {
     const { mx, my } = toMetres(pos.x, pos.y)
 
     if (state.selectedTool === 'node') {
+      setMultiSelectedIds([])
       dispatch({ type: 'ADD_NODE', x: mx, y: my })
     } else if (state.selectedTool === 'select') {
+      setMultiSelectedIds([])
       dispatch({ type: 'SELECT', id: null })
     }
   }
@@ -275,11 +561,24 @@ export function StructureCanvas() {
     if (!stage) return
 
     const isMiddleButton = e.evt.button === 1
-    const isLeftDragPan =
+    const isLeftDragPan = e.evt.button === 0 && state.selectedTool === 'drag'
+    const isLeftBoxSelect =
       e.evt.button === 0 &&
       state.selectedTool === 'select' &&
       e.target === e.currentTarget
-    if (!isMiddleButton && !isLeftDragPan) return
+
+    if (!isMiddleButton && !isLeftDragPan && !isLeftBoxSelect) return
+
+    if (isLeftBoxSelect) {
+      const pos = stage.getPointerPosition()
+      if (!pos) return
+      e.evt.preventDefault()
+      isBoxSelecting.current = true
+      didBoxSelect.current = false
+      setBoxSelectionStart({ x: pos.x, y: pos.y })
+      setBoxSelectionEnd({ x: pos.x, y: pos.y })
+      return
+    }
 
     e.evt.preventDefault()
     isPanning.current = true
@@ -306,6 +605,15 @@ export function StructureCanvas() {
       setPlacementCursor(null)
     }
 
+    if (isBoxSelecting.current && boxSelectionStart) {
+      e.evt.preventDefault()
+      setBoxSelectionEnd({ x: pos.x, y: pos.y })
+      if (Math.hypot(pos.x - boxSelectionStart.x, pos.y - boxSelectionStart.y) > 3) {
+        didBoxSelect.current = true
+      }
+      return
+    }
+
     if (!isPanning.current || !lastPanPos.current) return
     e.evt.preventDefault()
 
@@ -319,22 +627,36 @@ export function StructureCanvas() {
   }
 
   const handleStageMouseUp = (e: KonvaEventObject<MouseEvent>) => {
+    if (isBoxSelecting.current && boxSelectionStart && boxSelectionEnd) {
+      const didSelect = selectIdsWithinBox(boxSelectionStart, boxSelectionEnd)
+      didBoxSelect.current = didSelect
+      isBoxSelecting.current = false
+      setBoxSelectionStart(null)
+      setBoxSelectionEnd(null)
+      return
+    }
+
     if (!isPanning.current) return
     const stage = e.currentTarget.getStage()
     if (!stage) return
     isPanning.current = false
     lastPanPos.current = null
-    stage.container().style.cursor = 'default'
+    stage.container().style.cursor = state.selectedTool === 'drag' ? 'grab' : 'default'
   }
 
   const handleStageMouseLeave = (e: KonvaEventObject<MouseEvent>) => {
     setPlacementCursor(null)
+    if (isBoxSelecting.current) {
+      isBoxSelecting.current = false
+      setBoxSelectionStart(null)
+      setBoxSelectionEnd(null)
+    }
     if (!isPanning.current) return
     const stage = e.currentTarget.getStage()
     if (!stage) return
     isPanning.current = false
     lastPanPos.current = null
-    stage.container().style.cursor = 'default'
+    stage.container().style.cursor = state.selectedTool === 'drag' ? 'grab' : 'default'
   }
 
   const handleNodeClick = (nodeId: string) => {
@@ -346,12 +668,17 @@ export function StructureCanvas() {
     }
 
     if (tool === 'select') {
+      setMultiSelectedIds([nodeId])
       dispatch({ type: 'SELECT', id: nodeId })
       return
     }
 
     if (tool === 'beam' || tool === 'column' || tool === 'truss') {
+      if (module === 'truss' && tool !== 'truss') {
+        return
+      }
       if (state.pendingNodeId === null) {
+        setMultiSelectedIds([])
         dispatch({ type: 'SET_PENDING_NODE', nodeId })
       } else if (state.pendingNodeId !== nodeId) {
         const role =
@@ -417,6 +744,7 @@ export function StructureCanvas() {
     }
 
     if (state.selectedTool === 'select') {
+      setMultiSelectedIds([elemId])
       dispatch({ type: 'SELECT', id: elemId })
       return
     }
@@ -445,6 +773,7 @@ export function StructureCanvas() {
       return
     }
     if (state.selectedTool === 'select') {
+      setMultiSelectedIds([nodeId])
       dispatch({ type: 'SELECT', id: nodeId })
     }
   }
@@ -455,6 +784,7 @@ export function StructureCanvas() {
       return
     }
     if (state.selectedTool === 'select') {
+      setMultiSelectedIds([nodeId])
       dispatch({ type: 'SELECT', id: nodeId })
     }
   }
@@ -465,6 +795,7 @@ export function StructureCanvas() {
       return
     }
     if (state.selectedTool === 'select') {
+      setMultiSelectedIds([elementId])
       dispatch({ type: 'SELECT', id: elementId })
     }
   }
@@ -482,7 +813,12 @@ export function StructureCanvas() {
   }
 
   useEffect(() => {
-    if (!results || diagramMode === 'none' || elementNames.length === 0) {
+    const shouldFetch =
+      !!results &&
+      elementNames.length > 0 &&
+      (diagramMode !== 'none' || module === 'truss' || deflectionSlider > 0)
+
+    if (!shouldFetch) {
       setDiagramData({})
       setDiagramError(null)
       setDiagramLoading(false)
@@ -523,7 +859,7 @@ export function StructureCanvas() {
     return () => {
       mounted = false
     }
-  }, [results, diagramMode, elementNames, structureForDiagrams])
+  }, [results, diagramMode, elementNames, module, structureForDiagrams, deflectionSlider])
 
   const activeDiagramKey =
     diagramMode === 'deflection'
@@ -705,9 +1041,10 @@ export function StructureCanvas() {
   return (
     <div
       ref={containerRef}
-      className="relative h-full w-full overflow-hidden bg-neutral-400"
+      className="relative h-full w-full overflow-hidden bg-neutral-100 dark:bg-neutral-400"
     >
       <CanvasToolbar
+        module={module}
         canDeleteSelected={canDeleteSelected}
         onDeleteSelected={deleteSelected}
       />
@@ -780,8 +1117,8 @@ export function StructureCanvas() {
             <option value="none">Off</option>
             <option value="deflection">Deflection</option>
             <option value="axial">Axial</option>
-            <option value="shear">Shear</option>
-            <option value="moment">Moment</option>
+            {module !== 'truss' && <option value="shear">Shear</option>}
+            {module !== 'truss' && <option value="moment">Moment</option>}
           </select>
         </div>
 
@@ -841,6 +1178,7 @@ export function StructureCanvas() {
             width={dims.width}
             height={dims.height}
             gridSize={gridSize}
+            gridStepM={gridStepM}
             offsetX={offset.x}
             offsetY={offset.y}
           />
@@ -853,7 +1191,11 @@ export function StructureCanvas() {
                 pendingNode.x === placementCursor.mx &&
                 pendingNode.y === placementCursor.my
               if (samePoint) return null
-              const p1 = toPixel(pendingNode.x, pendingNode.y)
+              const pendingCoords = nodeRenderCoords[pendingNode.id] ?? {
+                mx: pendingNode.x,
+                my: pendingNode.y,
+              }
+              const p1 = toPixel(pendingCoords.mx, pendingCoords.my)
               const p2 = toPixel(placementCursor.mx, placementCursor.my)
               return (
                 <Line
@@ -868,13 +1210,52 @@ export function StructureCanvas() {
             })()
           )}
 
+          {boxSelectionStart && boxSelectionEnd && (
+            <Rect
+              x={Math.min(boxSelectionStart.x, boxSelectionEnd.x)}
+              y={Math.min(boxSelectionStart.y, boxSelectionEnd.y)}
+              width={Math.abs(boxSelectionEnd.x - boxSelectionStart.x)}
+              height={Math.abs(boxSelectionEnd.y - boxSelectionStart.y)}
+              fill="rgba(59, 130, 246, 0.18)"
+              stroke="#3b82f6"
+              strokeWidth={1}
+              dash={[6, 4]}
+              listening={false}
+            />
+          )}
+
           {/* Elements */}
           {state.elements.map((elem) => {
-            const ni = state.nodes.find((n) => n.id === elem.nodeI)
-            const nj = state.nodes.find((n) => n.id === elem.nodeJ)
+            const ni = nodeRenderCoords[elem.nodeI]
+            const nj = nodeRenderCoords[elem.nodeJ]
             if (!ni || !nj) return null
-            const p1 = toPixel(ni.x, ni.y)
-            const p2 = toPixel(nj.x, nj.y)
+            const p1 = toPixel(ni.mx, ni.my)
+            const p2 = toPixel(nj.mx, nj.my)
+
+            let animatedPoints: number[] | undefined
+            const d = diagramData[elem.name]
+            const niBase = state.nodes.find((n) => n.id === elem.nodeI)
+            const njBase = state.nodes.find((n) => n.id === elem.nodeJ)
+            if (deflectionSlider > 0 && d && niBase && njBase && d.x.length > 1) {
+              const dx = njBase.x - niBase.x
+              const dy = njBase.y - niBase.y
+              const L = Math.hypot(dx, dy)
+              if (L > 1e-9) {
+                const c = dx / L
+                const s = dy / L
+                animatedPoints = []
+                for (let i = 0; i < d.x.length; i++) {
+                  const x = d.x[i] ?? 0
+                  const vMm = d.deflection[i] ?? 0
+                  const baseMx = niBase.x + c * x
+                  const baseMy = niBase.y + s * x
+                  const base = toPixel(baseMx, baseMy)
+                  const offsetPx = (vMm / 1000) * gridSize * deflectionFactor
+                  animatedPoints.push(base.px - s * offsetPx, base.py - c * offsetPx)
+                }
+              }
+            }
+
             return (
               <ElementLine
                 key={elem.id}
@@ -882,24 +1263,47 @@ export function StructureCanvas() {
                 y1={p1.py}
                 x2={p2.px}
                 y2={p2.py}
+                points={animatedPoints}
                 name={elem.name}
                 role={elem.role}
-                selected={state.selectedId === elem.id}
+                selected={state.selectedId === elem.id || multiSelectedIds.includes(elem.id)}
                 onSelect={() => handleElementClick(elem.id)}
                 showName={elem.role === 'truss_member'}
               />
             )
           })}
 
+          {deflectionSlider > 0 &&
+            state.elements.map((elem) => {
+              const ni = state.nodes.find((n) => n.id === elem.nodeI)
+              const nj = state.nodes.find((n) => n.id === elem.nodeJ)
+              if (!ni || !nj) return null
+
+              const p1 = toPixel(ni.x, ni.y)
+              const p2 = toPixel(nj.x, nj.y)
+
+              return (
+                <Line
+                  key={`${elem.id}-original-outline`}
+                  points={[p1.px, p1.py, p2.px, p2.py]}
+                  stroke="#94a3b8"
+                  strokeWidth={1.5}
+                  dash={[5, 5]}
+                  opacity={0.8}
+                  listening={false}
+                />
+              )
+            })}
+
           {/* UDLs */}
           {visibleUdls.map((udl) => {
             const elem = state.elements.find((e) => e.id === udl.elementId)
             if (!elem) return null
-            const ni = state.nodes.find((n) => n.id === elem.nodeI)
-            const nj = state.nodes.find((n) => n.id === elem.nodeJ)
+            const ni = nodeRenderCoords[elem.nodeI]
+            const nj = nodeRenderCoords[elem.nodeJ]
             if (!ni || !nj) return null
-            const p1 = toPixel(ni.x, ni.y)
-            const p2 = toPixel(nj.x, nj.y)
+            const p1 = toPixel(ni.mx, ni.my)
+            const p2 = toPixel(nj.mx, nj.my)
             const lc = state.loadCases.find((l) => l.id === udl.loadCaseId)
             return (
               <UDLArrows
@@ -917,9 +1321,9 @@ export function StructureCanvas() {
 
           {/* Point loads */}
           {visiblePointLoads.map((pl) => {
-            const node = state.nodes.find((n) => n.id === pl.nodeId)
+            const node = nodeRenderCoords[pl.nodeId]
             if (!node) return null
-            const p = toPixel(node.x, node.y)
+            const p = toPixel(node.mx, node.my)
             const lc = state.loadCases.find((l) => l.id === pl.loadCaseId)
             return (
               <PointLoadArrow
@@ -936,9 +1340,9 @@ export function StructureCanvas() {
 
           {/* Supports */}
           {state.supports.map((sup) => {
-            const node = state.nodes.find((n) => n.id === sup.nodeId)
+            const node = nodeRenderCoords[sup.nodeId]
             if (!node) return null
-            const p = toPixel(node.x, node.y)
+            const p = toPixel(node.mx, node.my)
             return (
               <SupportShape
                 key={sup.id}
@@ -952,7 +1356,8 @@ export function StructureCanvas() {
 
           {/* Nodes (drawn last to be on top) */}
           {state.nodes.map((node) => {
-            const p = toPixel(node.x, node.y)
+            const renderNode = nodeRenderCoords[node.id] ?? { mx: node.x, my: node.y }
+            const p = toPixel(renderNode.mx, renderNode.my)
             return (
               <NodeShape
                 key={node.id}
@@ -961,14 +1366,16 @@ export function StructureCanvas() {
                 name={node.name}
                 selected={
                   state.selectedId === node.id ||
-                  state.pendingNodeId === node.id
+                  state.pendingNodeId === node.id ||
+                  multiSelectedIds.includes(node.id)
                 }
                 onSelect={() => handleNodeClick(node.id)}
                 onDragEnd={(mx, my) =>
                   dispatch({ type: 'MOVE_NODE', id: node.id, x: mx, y: my })
                 }
-                draggable={state.selectedTool === 'select'}
+                draggable={state.selectedTool === 'select' && deflectionSlider === 0}
                 gridSize={gridSize}
+                gridStepM={gridStepM}
                 offsetX={offset.x}
                 offsetY={offset.y}
               />
@@ -1011,19 +1418,25 @@ export function StructureCanvas() {
               }
 
               const shadedPolygon = [...points, ...reversePointPairs(baselinePoints)]
-
+              const isTrussAxialDiagram = module === 'truss' && activeDiagramKey === 'axial'
+              const elementDiagramColor = isTrussAxialDiagram
+                ? axialSignColor(d.axial)
+                : diagramColor
+              const elementDiagramFillColor = isTrussAxialDiagram
+                ? hexToRgba(elementDiagramColor, 0.28)
+                : diagramFillColor
               return [
                 <Line
                   key={`${elem.id}-${activeDiagramKey}-fill`}
                   points={shadedPolygon}
                   closed
-                  fill={diagramFillColor}
+                  fill={elementDiagramFillColor}
                   listening={false}
                 />,
                 <Line
                   key={`${elem.id}-${activeDiagramKey}`}
                   points={points}
-                  stroke={diagramColor}
+                  stroke={elementDiagramColor}
                   strokeWidth={2}
                   lineCap="round"
                   lineJoin="round"
@@ -1037,7 +1450,11 @@ export function StructureCanvas() {
                 x={hoverProbe.px}
                 y={hoverProbe.py}
                 radius={4}
-                fill={diagramColor}
+                fill={
+                  module === 'truss' && activeDiagramKey === 'axial'
+                    ? axialSignColor(diagramData[hoverProbe.element]?.axial ?? [])
+                    : diagramColor
+                }
                 stroke="#fff"
                 strokeWidth={1}
                 listening={false}
@@ -1061,15 +1478,41 @@ export function StructureCanvas() {
       )}
 
       {(diagramLoading || diagramError) && diagramMode !== 'none' && (
-        <div className="absolute z-10 rounded border border-border bg-card/90 px-2 py-1 text-xs backdrop-blur md:bottom-2 md:right-2 max-md:top-14 max-md:left-2 max-md:right-2">
+        <div className="absolute z-10 rounded border border-border bg-card/90 px-2 py-1 text-xs backdrop-blur md:bottom-12 md:right-2 max-md:top-14 max-md:left-2 max-md:right-2">
           {diagramLoading
             ? 'Loading canvas diagrams...'
             : `Canvas diagram error: ${(diagramError ?? '').slice(0, 80)}`}
         </div>
       )}
 
-      <div className="absolute bottom-2 left-2 z-10 rounded border border-border bg-card/90 px-2 py-1 text-[11px] text-muted-foreground max-md:hidden">
-        Zoom: mouse wheel · Pan: drag canvas or middle mouse · Fit: button
+      <div className="absolute bottom-24 left-2 z-10 rounded border border-border bg-card/90 px-2 py-1 text-[11px] text-muted-foreground backdrop-blur max-md:hidden">
+        1 grid = {GRID_STEP_LABELS.get(gridStepM) ?? `${gridStepM} m`}
+      </div>
+
+      <div className="absolute bottom-2 left-2 z-10 w-72 rounded border border-border bg-card/90 px-2 py-2 text-[11px] text-muted-foreground backdrop-blur max-md:hidden">
+        <div className="mb-1 flex items-center gap-2">
+          <Gauge className="h-3.5 w-3.5" />
+          <span>Deflection Animation</span>
+          <span className="ml-auto tabular-nums">{Math.round(deflectionSlider)}%</span>
+        </div>
+        <Slider
+          value={[deflectionSlider]}
+          onValueChange={(values) => setDeflectionSlider(values[0] ?? 0)}
+          min={0}
+          max={100}
+          step={1}
+        />
+        <div className="mt-1">Zoom: wheel · Pan: hand/middle · drag nodes disabled while animating</div>
+        {deflectionSlider > 0 && !results && (
+          <div className="mt-1 text-amber-700 dark:text-amber-400">
+            Run analysis to animate deflection.
+          </div>
+        )}
+        {deflectionSlider > 0 && results && !diagramLoading && maxRenderableDeflectionM <= 1e-12 && (
+          <div className="mt-1 text-amber-700 dark:text-amber-400">
+            No measurable deflection for the current case.
+          </div>
+        )}
       </div>
     </div>
   )

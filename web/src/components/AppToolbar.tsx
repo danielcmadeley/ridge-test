@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { Box, Calculator, Menu, Play, Trash2, Wrench } from 'lucide-react'
+import { Box, Calculator, GitFork, Menu, Play, Trash2, Wrench } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   CommandDialog,
@@ -52,6 +52,16 @@ export function AnalysisResultsProvider({
 }
 
 export function AppToolbar() {
+  return <ModuleToolbar module="frame" />
+}
+
+type ModuleType = 'frame' | 'truss'
+
+interface ModuleToolbarProps {
+  module?: ModuleType
+}
+
+export function ModuleToolbar({ module = 'frame' }: ModuleToolbarProps) {
   const state = useStructure()
   const dispatch = useStructureDispatch()
   const { setResults } = useAnalysisResults()
@@ -68,7 +78,8 @@ export function AppToolbar() {
 
   return (
     <UnifiedHeader
-      title="2D Analysis"
+      title={module === 'truss' ? '2D Truss Analysis' : '2D Analysis'}
+      badges={module === 'truss' ? ['Axial + Deflection'] : []}
       moduleControls={
         <div className="flex items-center gap-1 text-xs text-muted-foreground">
           <span>Grade:</span>
@@ -214,6 +225,23 @@ export function UnifiedHeader({
                 </div>
                 <CommandShortcut className="ml-0 text-[10px] tracking-normal">
                   {location === '/' ? 'Current' : 'Open'}
+                </CommandShortcut>
+              </div>
+            </CommandItem>
+            <CommandItem
+              onSelect={() => openTool('/truss')}
+              className="h-24 items-start rounded-md border border-border/70 bg-card/60 p-3"
+            >
+              <div className="flex w-full items-start gap-2">
+                <GitFork className="w-4 h-4 mt-0.5" />
+                <div className="min-w-0">
+                  <div className="font-medium leading-none">Truss Analysis</div>
+                  <div className="mt-1 text-xs text-muted-foreground leading-snug">
+                    Build pin-jointed trusses and review axial and deflection behavior.
+                  </div>
+                </div>
+                <CommandShortcut className="ml-0 text-[10px] tracking-normal">
+                  {location === '/truss' ? 'Current' : 'Open'}
                 </CommandShortcut>
               </div>
             </CommandItem>

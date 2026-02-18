@@ -10,9 +10,24 @@ let Plot: React.ComponentType<any> | null = null
 interface ForceDiagramProps {
   elementName?: string
   elementNames?: string[]
+  mode?: 'all' | 'axial-deflection'
 }
 
-export function ForceDiagram({ elementName, elementNames }: ForceDiagramProps) {
+const AXIAL_COLOR_THRESHOLD_KN = 0.5
+
+function axialSignColor(values: number[]) {
+  if (values.length === 0) return '#a855f7'
+  const avg = values.reduce((sum, v) => sum + v, 0) / values.length
+  if (avg > AXIAL_COLOR_THRESHOLD_KN) return '#dc2626'
+  if (avg < -AXIAL_COLOR_THRESHOLD_KN) return '#2563eb'
+  return '#6b7280'
+}
+
+export function ForceDiagram({
+  elementName,
+  elementNames,
+  mode = 'all',
+}: ForceDiagramProps) {
   const state = useStructure()
   const [plotLoaded, setPlotLoaded] = useState(!!Plot)
   const [diagrams, setDiagrams] = useState<DiagramOutput[]>([])
@@ -106,8 +121,16 @@ export function ForceDiagram({ elementName, elementNames }: ForceDiagramProps) {
       type: 'scatter',
       mode: 'lines',
       fill: isCombinedFrameView ? undefined : 'tozeroy',
-      fillcolor: isCombinedFrameView ? undefined : fillColor,
-      line: { color, width: isCombinedFrameView ? 1.5 : 2 },
+      fillcolor:
+        isCombinedFrameView
+          ? undefined
+          : key === 'axial'
+            ? `${axialSignColor(data.axial)}33`
+            : fillColor,
+      line: {
+        color: key === 'axial' ? axialSignColor(data.axial) : color,
+        width: isCombinedFrameView ? 1.5 : 2,
+      },
     }))
   }
 
@@ -138,15 +161,21 @@ export function ForceDiagram({ elementName, elementNames }: ForceDiagramProps) {
 
   const config = { displayModeBar: false, responsive: true }
 
+  const defaultTab = mode === 'axial-deflection' ? 'axial' : 'shear'
+
   return (
-    <Tabs defaultValue="shear" className="w-full">
+    <Tabs defaultValue={defaultTab} className="w-full">
       <TabsList className="w-full justify-start h-7">
-        <TabsTrigger value="shear" className="text-xs h-6">
-          Shear
-        </TabsTrigger>
-        <TabsTrigger value="moment" className="text-xs h-6">
-          Moment
-        </TabsTrigger>
+        {mode === 'all' && (
+          <TabsTrigger value="shear" className="text-xs h-6">
+            Shear
+          </TabsTrigger>
+        )}
+        {mode === 'all' && (
+          <TabsTrigger value="moment" className="text-xs h-6">
+            Moment
+          </TabsTrigger>
+        )}
         <TabsTrigger value="deflection" className="text-xs h-6">
           Deflection
         </TabsTrigger>
@@ -155,25 +184,29 @@ export function ForceDiagram({ elementName, elementNames }: ForceDiagramProps) {
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent value="shear">
-        <Plot
-          data={buildTraces('shear', '#3b82f6', 'rgba(59,130,246,0.15)')}
-          layout={{ ...layout, yaxis: { ...layout.yaxis, title: 'V (kN)' } }}
-          config={config}
-          useResizeHandler
-          className="w-full"
-        />
-      </TabsContent>
+      {mode === 'all' && (
+        <TabsContent value="shear">
+          <Plot
+            data={buildTraces('shear', '#3b82f6', 'rgba(59,130,246,0.15)')}
+            layout={{ ...layout, yaxis: { ...layout.yaxis, title: 'V (kN)' } }}
+            config={config}
+            useResizeHandler
+            className="w-full"
+          />
+        </TabsContent>
+      )}
 
-      <TabsContent value="moment">
-        <Plot
-          data={buildTraces('moment', '#ef4444', 'rgba(239,68,68,0.15)')}
-          layout={{ ...layout, yaxis: { ...layout.yaxis, title: 'M (kNm)' } }}
-          config={config}
-          useResizeHandler
-          className="w-full"
-        />
-      </TabsContent>
+      {mode === 'all' && (
+        <TabsContent value="moment">
+          <Plot
+            data={buildTraces('moment', '#ef4444', 'rgba(239,68,68,0.15)')}
+            layout={{ ...layout, yaxis: { ...layout.yaxis, title: 'M (kNm)' } }}
+            config={config}
+            useResizeHandler
+            className="w-full"
+          />
+        </TabsContent>
+      )}
 
       <TabsContent value="deflection">
         <Plot

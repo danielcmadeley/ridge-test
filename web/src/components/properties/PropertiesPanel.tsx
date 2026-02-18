@@ -9,7 +9,11 @@ import { LoadCasePanel } from './LoadCasePanel'
 import { CombinationEditor } from './CombinationEditor'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
-export function PropertiesPanel() {
+interface PropertiesPanelProps {
+  module?: 'frame' | 'truss'
+}
+
+export function PropertiesPanel({ module = 'frame' }: PropertiesPanelProps) {
   const state = useStructure()
   const dispatch = useStructureDispatch()
 
@@ -141,7 +145,7 @@ export function PropertiesPanel() {
               role={selectedElement.role}
             />
 
-            {selectedElement.role !== 'truss_member' && (
+            {module !== 'truss' && selectedElement.role !== 'truss_member' && (
               <div className="rounded-md border border-border bg-secondary/60 p-2 grid grid-cols-1 gap-2">
                 <label className="flex items-center gap-2 text-xs">
                   <input
@@ -190,9 +194,11 @@ export function PropertiesPanel() {
               <ElementList />
             </div>
 
-            <div className="border-t border-border pt-3">
-              <CombinationEditor />
-            </div>
+            {module !== 'truss' && (
+              <div className="border-t border-border pt-3">
+                <CombinationEditor />
+              </div>
+            )}
           </div>
         )}
 

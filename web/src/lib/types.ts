@@ -270,6 +270,7 @@ export interface LoadTakedownAnalysisResult {
 // ── Client-side state types ──────────────────────────────────
 
 export type ToolType =
+  | 'drag'
   | 'select'
   | 'erase'
   | 'node'
