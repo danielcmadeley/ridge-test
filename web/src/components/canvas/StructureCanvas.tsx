@@ -1,7 +1,7 @@
 import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import { Stage, Layer, Line, Circle, Rect } from 'react-konva'
 import type { KonvaEventObject } from 'konva/lib/Node'
-import { Gauge } from 'lucide-react'
+import { AlertTriangle, Gauge } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
 import { GridLayer } from './GridLayer'
@@ -297,6 +297,57 @@ export function StructureCanvas({ module = 'frame' }: StructureCanvasProps) {
     if (!showLoads) return []
     return state.pointLoads.filter((p) => loadCaseVisibility[p.loadCaseId] ?? true)
   }, [showLoads, state.pointLoads, loadCaseVisibility])
+
+  const trussStability = useMemo(() => {
+    if (module !== 'truss') {
+      return { unstable: false, reasons: [] as string[] }
+    }
+
+    const reasons: string[] = []
+    const trussElements = state.elements.filter((e) => e.role === 'truss_member')
+    const nonTrussElements = state.elements.filter((e) => e.role !== 'truss_member')
+
+    if (nonTrussElements.length > 0) {
+      reasons.push('Contains beam/column elements (truss mode is axial-only).')
+    }
+
+    if (state.udls.length > 0) {
+      reasons.push('Distributed member loads require bending stiffness.')
+    }
+
+    if (state.supports.some((s) => s.type === 'fixed')) {
+      reasons.push('Fixed supports imply moment restraint, outside pin-jointed assumptions.')
+    }
+
+    const nodeSet = new Set<string>()
+    for (const e of trussElements) {
+      nodeSet.add(e.nodeI)
+      nodeSet.add(e.nodeJ)
+    }
+
+    const joints = nodeSet.size
+    const members = trussElements.length
+    const reactionComponents = state.supports
+      .filter((s) => nodeSet.has(s.nodeId))
+      .reduce((sum, s) => {
+        if (s.type === 'pinned') return sum + 2
+        if (s.type === 'roller') return sum + 1
+        return sum + 3
+      }, 0)
+
+    if (joints > 0 && reactionComponents < 3) {
+      reasons.push('Insufficient support reactions for planar equilibrium (need at least 3).')
+    }
+
+    if (joints > 0 && members + reactionComponents < 2 * joints) {
+      reasons.push('Mechanism risk: m + r < 2j, so equilibrium may require bending action.')
+    }
+
+    return {
+      unstable: reasons.length > 0,
+      reasons,
+    }
+  }, [module, state.elements, state.supports, state.udls])
 
   const canDeleteSelected = useMemo(() => {
     if (multiSelectedIds.length > 0) return true
@@ -1121,6 +1172,18 @@ export function StructureCanvas({ module = 'frame' }: StructureCanvasProps) {
             {module !== 'truss' && <option value="moment">Moment</option>}
           </select>
         </div>
+
+        {module === 'truss' && trussStability.unstable && (
+          <div
+            className="flex items-start gap-2 rounded border border-red-500/50 bg-red-500/10 px-2 py-1.5 text-red-700 dark:text-red-300"
+            title={trussStability.reasons.join('\n')}
+          >
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div className="text-[11px] leading-snug">
+              Unstable or bending-dependent truss.
+            </div>
+          </div>
+        )}
 
         <div className="border-t border-border pt-2 space-y-1">
           <label className="flex items-center justify-between gap-2">
